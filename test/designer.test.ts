@@ -104,15 +104,18 @@ describe('master designer', () => {
     expect(skeletonStages('hard-wet-granulation', header)[2]!.steps.find((t) => t.key === 'yield')!.settings.theoretical).toEqual({ header: 'fillBatch' });
     // Soft gel: gel mass and fill medicine alongside; the fills against ± 3 % of the fill target; drying twice, to a hardness.
     expect(ids('softgel-oily', soft)).toEqual(['line-clearance weigh charge gel-mass', 'line-clearance weigh charge mix check',
-      'line-clearance softgel-encapsulate softgel-dry softgel-dry polish-print uniformity-by-weight disintegration qa-sample capsule-reconciliation']);
+      'line-clearance softgel-encapsulate softgel-dry softgel-dry check polish-print uniformity-by-weight disintegration qa-sample capsule-reconciliation']);
     const sg = skeletonStages('softgel-oily', soft);
     expect(sg.map((s) => s.kind)).toEqual(['preparation', 'preparation', 'normal']);
     expect(sg[2]!.steps[1]!.settings).toMatchObject({ fillTarget: { header: 'fillWeight' }, meanLimit: { low: '242.5', high: '257.5', unit: 'mg' } });
     expect(sg[2]!.steps.filter((t) => t.block.id === 'softgel-dry').map((t) => [t.name, t.minMinutes, t.flow.kind])).toEqual([['Tumble drying', 120, 'repeat-until'], ['Tray drying', 2880, 'repeat-until']]);
-    expect(sg[2]!.steps[5]!.settings.coating).toBe('soft capsule, solution fill');
+    expect(sg[2]!.steps[6]!.settings.coating).toBe('soft capsule, solution fill');
+    // The dried capsules are reconciled on their measured mean weight, not fill + wet gel mass (the shell loses its water).
+    expect(sg[2]!.steps[4]!.settings).toEqual({ what: 'Mean weight of 20 dried capsules', unit: 'mg' });
+    expect(sg[2]!.steps.at(-1)!.settings.meanWeight).toEqual({ ref: 'encapsulation/dried-weight/reading' });
     // A suspension fill is milled and deaerated, and uses content uniformity.
     expect(ids('softgel-suspension', soft)[1]).toBe('line-clearance weigh charge mix sieve mix check');
-    expect(skeletonStages('softgel-suspension', soft)[2]!.steps[5]).toMatchObject({ block: { id: 'content-uniformity' }, settings: { coating: 'soft capsule, suspension fill' } });
+    expect(skeletonStages('softgel-suspension', soft)[2]!.steps[6]).toMatchObject({ block: { id: 'content-uniformity' }, settings: { coating: 'soft capsule, suspension fill' } });
     expect(ids('liquid-filled-hard')[1]).toBe('line-clearance capsule-fill capsule-band uniformity-by-weight disintegration polish-print capsule-reconciliation');
   });
 
