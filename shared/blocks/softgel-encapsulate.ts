@@ -9,7 +9,7 @@ export const softgelEncapsulate: Block = {
   periodic: { maxMinutes: 30 },
   instruction: 'Record the ribbon thickness on both sides and the wedge temperature. Take 10 capsules: weigh each, cut it open, wash out the fill and weigh the dry shell. Measure the seal thickness and look for leakers.',
   fields: [
-    { name: 'machine', label: 'Encapsulation machine', kind: 'machine', types: ['encapsulat', 'softgel', 'soft gel'] },
+    { name: 'machine', label: 'Encapsulation machine', kind: 'machine', types: ['encapsulat', 'softgel', 'soft gel'], notTypes: ['inspect'] },
     { name: 'ribbonLeft', label: 'Ribbon thickness, left', kind: 'number', unit: 'mm' },
     { name: 'ribbonRight', label: 'Ribbon thickness, right', kind: 'number', unit: 'mm' },
     { name: 'wedgeTemp', label: 'Wedge temperature', kind: 'number', unit: '°C' },

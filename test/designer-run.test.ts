@@ -32,7 +32,7 @@ describe('designer findings of the 17 Nov 2026 run', () => {
     const di = doc.stages[compression]!.steps.findIndex((t) => t.block.id === 'disintegration');
     const warned = placeChecks(doc, MD).find((p) => p.path === `stages[${compression}].steps[${di}]`);
     expect(warned).toMatchObject({ level: 'warning', rule: 'TC-11' });
-    expect(warned!.message).toBe('No disintegration tester stands in a room this stage allows (Capsule filling): IN-DT-01 stands in RM-110. Allow its room in the stage settings, or engineering moves it in master data');
+    expect(warned!.message).toBe('No disintegration tester stands in a room this stage allows (Capsule filling, Inspection): IN-DT-01 stands in RM-110. Allow its room in the stage settings, or engineering moves it in master data');
     // The filler, the polisher and the metal detector stand in the capsule filling room: no warning for them; with the tester moved, none.
     expect(placeChecks(doc, MD).filter((p) => p.path.startsWith(`stages[${compression}]`)).map((p) => p.path)).toEqual([`stages[${compression}].steps[${di}]`]);
     const moved = { ...MD, equipment: MD.equipment.map((m) => (m.code === 'IN-DT-01' ? { ...m, room: 'RM-105' } : m)) };
