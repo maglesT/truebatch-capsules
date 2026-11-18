@@ -363,20 +363,29 @@ async function stockProblem(app: FastifyInstance, tx: Tx, l: LoadedBatch, v: Ste
   const unit = r.value.unit;
   const want = inLotUnit(q, unit);
   if (!want) return null;
+  // What this app's batches used of the lot; this step's own earlier quantity kept apart (`mine`).
   let used = new Dec(0);
+  let mine = new Dec(0);
   const ids = await tx<{ id: number }[]>`select distinct batch_id::int as id from step_events
     where kind in ('value', 'corrected') and lower(payload->'values'->>'lot') = lower(${lot})`;
   for (const { id } of ids) {
     const b = id === l.batch.id ? l : (await loadBatch(tx, id))!;
     for (const u of usesOfLot(b.doc, openSteps(b.doc, b.events, b.now).steps, lot, returnsOf(b.batchEvents))) {
-      if (id === l.batch.id && u.step.id === v.id) continue;
-      used = used.plus(inLotUnit(u.quantity, unit) ?? 0);
+      const n = inLotUnit(u.quantity, unit) ?? 0;
+      if (id === l.batch.id && u.step.id === v.id) mine = mine.plus(n);
+      else used = used.plus(n);
     }
   }
   const stock = new Dec(r.value.stock);
-  const available = Dec.max(stock.minus(used), 0);
+  // Port of Tablets round 35: MMS's stock after use counts every TrueBatch product (here a lot shared with another
+  // product went to -138). It is refreshed about every minute, so it can trail this app's newest use: the lower of the
+  // two is taken (two products taking the last of a lot within that minute can both pass; accepted).
+  const own = Dec.max(stock.minus(used), 0);
+  const all = r.value.stockAfterUse ? Dec.max(new Dec(r.value.stockAfterUse).plus(mine), 0) : null;
+  const available = all && all.lte(own) ? all : own;
   if (want.lte(available)) return null;
-  return `Lot ${lot} has ${available} ${unit} available in MMS (${stock} ${unit} in stock less ${used} ${unit} already used in ${app.product.name}): `
+  const why = available === all ? `after use in all TrueBatch products` : `${stock} ${unit} in stock less ${used} ${unit} already used in ${app.product.name}`;
+  return `Lot ${lot} has ${available} ${unit} available in MMS (${why}): `
     + `${want} ${unit} cannot be taken from it. ${available.gt(0) ? `Take at most ${available} ${unit}, or another lot.` : 'Take another lot.'}`;
 }
 
