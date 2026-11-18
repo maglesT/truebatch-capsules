@@ -99,7 +99,7 @@ describe('master designer', () => {
     expect(df[1]!.steps[1]).toMatchObject({ everyMinutes: 30, flow: { kind: 'repeat-until' }, settings: { meanLimit: { low: '308.8', high: '341.3', unit: 'mg' } } });
     expect(df[1]!.steps[2]!.settings.coating).toBe('hard capsule');
     expect(df[1]!.steps.at(-1)!.settings.meanWeight).toEqual({ ref: 'filling/fill/meanWeight' });
-    expect(df.map((s) => s.roomTypes.join())).toEqual(['', 'Capsule filling']);
+    expect(df.map((s) => s.roomTypes.join())).toEqual(['', 'Capsule filling,Inspection']);
     expect(skeletonStages('hard-wet-granulation', header).map((s) => s.key)).toEqual(['binder', 'granulation', 'blending', 'filling']);
     expect(skeletonStages('hard-wet-granulation', header)[2]!.steps.find((t) => t.key === 'yield')!.settings.theoretical).toEqual({ header: 'fillBatch' });
     // Soft gel: gel mass and fill medicine alongside; the fills against ± 3 % of the fill target; drying twice, to a hardness.

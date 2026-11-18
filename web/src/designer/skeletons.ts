@@ -5,7 +5,7 @@
 // previous stage's output), unless the stage adds materials (blending: on the fill batch weight); the capsules are
 // reconciled by weight with the mean filled-capsule weight, and the granulation end point is checked by a second
 // person. A new master names no dispensing rooms: the author picks them (Header.tsx). A stage starts with the rooms it
-// usually runs in, by the usual area names; a stage whose rooms differ from plant to plant (a binder solution, a
+// usually runs in, by the demo's area names (filling, then polishing and sorting in an inspection room); a stage whose rooms differ from plant to plant (a binder solution, a
 // preparation, blending) is left for the author: the master check asks for its rooms (TC-11).
 import { findBlock } from '../../../shared/blocks/index.js';
 import { Dec } from '../../../shared/templates/index.js';
@@ -31,7 +31,7 @@ const sortStep: StepPlan = { block: 'polish-print', key: 'sort', name: 'Polish a
 const metalStep: StepPlan = { block: 'metal-check', key: 'metal' };
 const hardTests = (unit: string): StepPlan[] => [{ block: 'uniformity-by-weight', settings: () => ({ coating: unit }) },
   { block: 'disintegration', settings: () => ({ maxTime: '30' }) }];
-const filling = (uses: string[]): StagePlan => ({ key: 'filling', name: 'Filling', role: 'Filling operator', rooms: ['Capsule filling'], produces: ['filled capsules', 720], uses,
+const filling = (uses: string[]): StagePlan => ({ key: 'filling', name: 'Filling', role: 'Filling operator', rooms: ['Capsule filling', 'Inspection'], produces: ['filled capsules', 720], uses,
   steps: [fillStep, ...hardTests('hard capsule'), sortStep, metalStep, reconcile('filling', 'fill')] });
 
 // Wet granulation: binder solution, granulation and drying, blending with the extragranular materials and the
@@ -58,7 +58,7 @@ const fillMedicine = (suspension: boolean): StagePlan => ({ key: 'fill-medicine'
     ...(suspension ? [{ block: 'sieve', key: 'mill', name: 'Mill (colloid mill)' }, { block: 'mix', key: 'deaerate', name: 'Deaerate under vacuum', minMinutes: 30 }] : []),
     { block: 'check', key: 'viscosity', settings: () => ({ what: 'Viscosity of the fill medicine', unit: 'mPa·s' }) }] });
 const softgel = (suspension: boolean): StagePlan => ({ key: 'encapsulation', name: 'Encapsulation, drying and inspection', role: 'Encapsulation operator',
-  rooms: ['Encapsulation', 'Drying'], produces: ['dried capsules', 720], uses: ['gel-mass', 'fill-medicine'],
+  rooms: ['Softgel encapsulation', 'Softgel drying', 'Inspection'], produces: ['dried capsules', 720], uses: ['gel-mass', 'fill-medicine'],
   steps: [{ block: 'softgel-encapsulate', key: 'encapsulate', settings: (h) => ({ fillTarget: { header: 'fillWeight' },
     meanLimit: { low: pct(h, h.fillWeightMg, '-3'), high: pct(h, h.fillWeightMg, '3'), unit: 'mg' }, weightBand: '5.0' }) },
   { block: 'softgel-dry', key: 'tumble', name: 'Tumble drying', minMinutes: 120 }, { block: 'softgel-dry', key: 'tray', name: 'Tray drying', minMinutes: 2880 },
@@ -92,7 +92,7 @@ const SKELETONS: { id: string; name: string; text: string; stages: StagePlan[] }
   {
     id: 'liquid-filled-hard', name: 'Liquid-filled hard capsule',
     text: 'Fill medicine, then capsule filling, banding or sealing, inspection and reconciliation.',
-    stages: [fillMedicine(false), { key: 'filling', name: 'Filling and banding', role: 'Filling operator', rooms: ['Capsule filling'], produces: ['filled capsules', 720], uses: ['fill-medicine'],
+    stages: [fillMedicine(false), { key: 'filling', name: 'Filling and banding', role: 'Filling operator', rooms: ['Capsule filling', 'Inspection'], produces: ['filled capsules', 720], uses: ['fill-medicine'],
       steps: [fillStep, { block: 'capsule-band', key: 'band' }, ...hardTests('hard capsule'), sortStep, reconcile('filling', 'fill')] }],
   },
 ];
