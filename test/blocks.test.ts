@@ -184,3 +184,24 @@ describe('the engine runs the new blocks like any other', () => {
     expect(evaluate(d, [], key, { times: times('5 6 7 8 9 16'), moreTimes: times('5 6 7 8 9 10 5 6 7 8 9 10') }).stages).toMatchObject({ ok: true, decision: 'pass' });
   });
 });
+
+describe('"$prev.name" in a block description', () => {
+  const runningTotal = (values: string[]) => ({
+    id: 'running-total', version: 1, name: 'Running total', instruction: 'Add a portion each round.', checker: false,
+    fields: [{ name: 'added', label: 'Added', kind: 'number' as const, unit: 'kg' }],
+    settings: [],
+    calcs: [{ name: 'total', label: 'Total so far', template: 'T2', args: { values } }],
+  });
+
+  it('a running total may name itself in the previous round', () => {
+    expect(blockProblems(runningTotal(['$prev.total?', '$added']))).toEqual([]);
+  });
+
+  it('an unknown name after "$prev." is still refused', () => {
+    expect(blockProblems(runningTotal(['$prev.nothing?', '$added']))).toEqual(['calculation total: "$prev.nothing" is not a field, setting or earlier calculation']);
+  });
+
+  it('a calculation still may not name itself without "$prev."', () => {
+    expect(blockProblems(runningTotal(['$total', '$added']))).toEqual(['calculation total: "$total" is not a field, setting or earlier calculation']);
+  });
+});
