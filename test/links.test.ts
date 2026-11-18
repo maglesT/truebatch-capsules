@@ -71,7 +71,7 @@ beforeAll(async () => {
   t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated tablets'), strength: '100 mg', dosageForm: 'tablet' },
     { ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
   for (const l of tablet().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
-  t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' });
+  t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
   t.master.equipment_.push(...['', '2', '3', '4', '5'].map((n) => ({ ...item(`eq-str${n}`, `STR-0${n || 1}`, 'Stirrer'), kind: 'equipment' as const, type: 'stirrer', room: 'GRN-01' })),
     { ...item('eq-bal', 'BAL-01', 'Balance 60 kg'), kind: 'instrument', type: 'balance', room: 'DSP-01' },
     { ...item('eq-rmg', 'RMG-01', 'Granulator'), kind: 'equipment', type: 'granulator', room: 'GRN-01' });

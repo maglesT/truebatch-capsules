@@ -15,6 +15,7 @@ export function seedMasterData(m: FakeMaster) {
     { ...item('mat-mcc', 'MAT-005', 'Microcrystalline cellulose'), category: 'excipient', unit: 'kg' },
     { ...item('mat-mgs', 'MAT-006', 'Magnesium stearate'), category: 'excipient', unit: 'kg' },
     { ...item('mat-cot', 'MAT-007', 'Film coating system'), category: 'excipient', unit: 'kg' },
+    { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' },
   );
   m.equipment_.push(
     { ...item('eq-bal', 'BAL-01', 'Balance 60 kg'), kind: 'instrument', type: 'balance', room: 'DSP-01' },

@@ -67,11 +67,13 @@ export function earlierRefs(doc: MasterDoc, si: number, ti: number): RefOption[]
 }
 
 export const HEADER_LABEL: Record<(typeof HEADER_VALUES)[number], { label: string; kind: Kind }> = {
-  batchSize: { label: 'the batch size (tablets)', kind: 'count' },
-  fillWeight: { label: 'the theoretical core tablet weight', kind: 'mass' },
-  coatedWeight: { label: 'the theoretical coated tablet weight', kind: 'mass' },
-  fillBatch: { label: 'the theoretical core batch weight', kind: 'mass' },
+  batchSize: { label: 'the batch size (capsules)', kind: 'count' },
+  fillWeight: { label: 'the theoretical fill weight per capsule', kind: 'mass' },
+  coatedWeight: { label: 'the theoretical coated weight per capsule', kind: 'mass' },
+  fillBatch: { label: 'the theoretical fill batch weight', kind: 'mass' },
   coatedBatch: { label: 'the theoretical coated batch weight', kind: 'mass' },
+  shellWeight: { label: 'the mean empty shell weight (hard) or wet gel mass per capsule (soft gel)', kind: 'mass' },
+  filledWeight: { label: 'the theoretical filled capsule weight (fill + shell)', kind: 'mass' },
 };
 
 export const stepTitle = (doc: MasterDoc, t: Step, j?: number) => `${j === undefined ? '' : `${j + 1}. `}${title(doc, t)}`;

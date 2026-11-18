@@ -23,7 +23,7 @@ const OFFERS: Record<string, string[]> = {
 };
 
 describe('machine pickers on the demo master-data types', () => {
-  const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0' };
+  const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', shellType: 'hard gelatin' as const, shellSize: '1', shellWeightMg: '75.0' };
   // The types alone: here every stage allows any room (the rooms are tested below).
   const stages = [...SKELETON_LIST.flatMap((s) => skeletonStages(s.id, header)), ...packingStages(pack())].map((s) => ({ ...s, roomTypes: [] }));
 

@@ -12,7 +12,7 @@ import { sentence, sentenceText, settingText, slotsOf } from './sentences.js';
 export interface Line { key: string; text: string }
 export interface Section { key: string; title: string; lines: Line[] }
 
-const PLACE: Record<FormulaLine['place'], string> = { intragranular: 'intragranular', extragranular: 'extragranular', binder: 'in the binder solution', coating: 'coating' };
+const PLACE: Record<FormulaLine['place'], string> = { intragranular: 'intragranular', extragranular: 'extragranular', binder: 'in the binder solution', coating: 'coating', shell: 'shell' };
 const ROLE: Record<FormulaLine['role'], string> = { api: 'API', excipient: 'excipient', solvent: 'solvent, removed in processing' };
 
 function adjustText(doc: MasterDoc, l: FormulaLine): string {

@@ -25,7 +25,7 @@ async function issue(doc: ReturnType<typeof small>) {
 beforeAll(async () => {
   t = await freshApp();
   t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
-  t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' });
+  t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
   t.master.equipment_.push({ ...item('eq-prs', 'PRS-01', 'Tablet press'), kind: 'equipment', type: 'tablet press', room: 'CMP-01' });
   const people = { author: ['truebatch_capsules.master.author'], issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.batch.check'],
     ravi: ['truebatch_capsules.batch.check'], sam: ['truebatch_capsules.batch.supervise'], viewer: ['truebatch_capsules.view'] } as const;

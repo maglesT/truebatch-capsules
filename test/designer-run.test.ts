@@ -14,7 +14,7 @@ import { tablet } from './engine-fixture.js';
 // plain view's words, and the pick lists offered from master data.
 
 const block = (id: string) => BLOCKS.find((b) => b.id === id)!;
-const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '50000', fillWeightMg: '600.0', dispensingRooms: ['RM-101'] };
+const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '50000', fillWeightMg: '600.0', shellType: 'hard gelatin' as const, shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['RM-101'] };
 const room = (code: string, name: string, area: string | null, active = true) => ({ itemId: code, code, name, version: 1, active, area, grade: 'D' });
 const machine = (code: string, type: string | null, at: string | null, active = true) => ({ itemId: code, code, name: code, version: 1, active, kind: 'instrument' as const, type, room: at });
 const MD = {

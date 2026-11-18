@@ -78,11 +78,11 @@ describe('master designer', () => {
   });
 
   it('TC-10 the process skeletons are valid drafts and start every stage with line clearance; what they leave open is listed by the master check', () => {
-    const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', coatedWeightMg: '257.5', dispensingRooms: ['RM-101'] };
+    const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', coatedWeightMg: '257.5', shellType: 'hard gelatin' as const, shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['RM-101'] };
     for (const s of SKELETON_LIST) {
       const doc = masterSchema.parse({ header, formula: [], stages: skeletonStages(s.id, header) });
       expect(doc.stages.every((st) => st.steps.every((t) => findBlock(t.block)))).toBe(true);
-      expect(masterChecks(doc).every((p) => /not set|not checked|no core materials|choose the rooms/.test(p.message))).toBe(true);
+      expect(masterChecks(doc).every((p) => /not set|not checked|no fill materials|no empty shell line|choose the rooms/.test(p.message))).toBe(true);
     }
     // TC-11: a master that weighs names its dispensing rooms; a new one starts with none (the author picks them).
     const bare = masterSchema.parse({ header: { ...header, dispensingRooms: undefined }, formula: [], stages: skeletonStages(SKELETON_LIST[0]!.id, header) });

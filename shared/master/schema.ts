@@ -16,7 +16,9 @@ export const limitSchema = z.object({
 
 // A step setting: a value as written ("0.5", "250.0 mg"), a limit, or a reference to an earlier step's field or
 // calculation ("stage/step/name"), to a formula line (its batch quantity, adjusted when asked) or to the header.
-export const HEADER_VALUES = ['batchSize', 'fillWeight', 'coatedWeight', 'fillBatch', 'coatedBatch'] as const;
+// fillWeight: the fill per capsule; shellWeight: the mean empty shell (hard) or the wet gel mass per capsule (soft gel);
+// filledWeight: fill + shell, the theoretical weight of one filled capsule (gross fill-weight target, counts by weight).
+export const HEADER_VALUES = ['batchSize', 'fillWeight', 'coatedWeight', 'fillBatch', 'coatedBatch', 'shellWeight', 'filledWeight'] as const;
 export const settingValueSchema = z.union([
   text(),
   limitSchema,
@@ -88,9 +90,11 @@ export const lineSchema = z.object({
   code: text(),
   name: text(),
   mgPerCapsule: decimal,
-  // A solvent is removed in processing (granulation water) and is not part of the tablet weight.
+  // A solvent is removed in processing (granulation water) and is not part of the fill weight.
   role: z.enum(['api', 'excipient', 'solvent']),
-  place: z.enum(['intragranular', 'extragranular', 'binder', 'coating']),
+  // shell: the empty hard shell (one line at the mean empty shell weight, weighed: count by weight) or the gel mass
+  // lines of a soft gel (gelatin, plasticiser, water, colour); they add up to the header's shellWeightMg.
+  place: z.enum(['intragranular', 'extragranular', 'binder', 'coating', 'shell']),
   layer: z.number().int().min(1).max(10).optional(),
   // The API's label claim per tablet ("20 mg", "10 mEq"), on the basis the label-basis answer gives; checked, never used.
   labelClaim: text(40).optional(),
@@ -118,17 +122,29 @@ export const lineSchema = z.object({
   }).strict().optional(),
 }).strict();
 
+export const SHELL_TYPES = ['hard gelatin', 'HPMC', 'soft gelatin'] as const;
+export const isSoftGel = (h: { shellType?: string }) => h.shellType === 'soft gelatin';
+
 export const headerSchema = z.object({
   productItemId: z.string().min(1).max(100),
   productCode: text(),
   productName: text(),
-  batchSize: z.string().regex(/^[1-9]\d{0,9}$/, 'a whole number of tablets'),
+  batchSize: z.string().regex(/^[1-9]\d{0,9}$/, 'a whole number of capsules'),
+  // The fill per capsule (blend, pellets or fill medicine).
   fillWeightMg: decimal,
+  // TC-01: the shell. Optional in the shape (a draft may be incomplete); the master check asks for it.
+  shellType: z.enum(SHELL_TYPES).optional(),
+  // Hard capsules: the shell size ("0", "1", "00el").
+  shellSize: text(20).optional(),
+  // Hard: the mean empty shell weight; soft gel: the wet gel mass per capsule.
+  shellWeightMg: decimal.optional(),
+  // TC-24: a US OTC product: a two-piece hard capsule needs a sealing (banding) step.
+  usOtc: z.boolean().optional(),
   coatedWeightMg: decimal.optional(),
   // The die bore area from the tooling record, to check that the target weight fits the tooling (F0135).
   dieAreaMm2: decimal.optional(),
   // Other strengths compressed from the same blend at their own core weight (F0225, F0366).
-  otherStrengths: z.array(z.object({ name: text().min(1), labelClaim: text(40), fillWeightMg: decimal }).strict()).max(10).optional(),
+  otherStrengths: z.array(z.object({ name: text().min(1), labelClaim: text(40), fillWeightMg: decimal, shellSize: text(20).optional(), shellWeightMg: decimal.optional() }).strict()).max(10).optional(),
   // TC-11: the rooms of master data (codes) where this product's materials are weighed; a balance is offered there or
   // in a room the stage allows (shared/engine/picks.ts). A version made before this setting has none.
   dispensingRooms: z.array(text()).max(20).optional(),

@@ -335,7 +335,7 @@ describe('production approval, QC approval and QA release', () => {
   const batchSign = async (who: string, action: string, extra: object = {}) => batchAct(who, action, { proof: proofFor(who), contentHash: (await full()).batch.contentHash, ...extra });
   beforeAll(async () => {
     t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
-    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' });
+    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
     // One pH check and the stage yield, checked by a second person.
     const doc = small([{ steps: [{}, { block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '0.100 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' } } }] }]);
     id = (await issue(await effectiveMaster(undefined, doc))).id;

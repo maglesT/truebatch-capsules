@@ -79,8 +79,24 @@ describe('master checks', () => {
     expect(after((d) => { d.stages[2]!.steps.pop(); })).toEqual(['error - stages[2]: Stage Compression has no yield step']);
   });
 
-  it('the formula must add up to the theoretical core weight (coating and solvents left out)', () => {
-    expect(after((d) => { d.formula[4]!.mgPerCapsule = '17.0'; })).toEqual(['error - formula: The core materials add up to 249.5 mg per tablet, not the theoretical core weight 250.0 mg']);
+  it('TC-01 the shell: its type and weight are named, and the shell lines add up to the shell weight per capsule', () => {
+    expect(after((d) => { delete d.header.shellType; })).toEqual(['error TC-01 header.shellType: The master names no shell type (hard gelatin, HPMC or soft gelatin)']);
+    expect(after((d) => { delete d.header.shellWeightMg; })).toEqual(['error TC-01 header.shellWeightMg: The master has no mean empty shell weight']);
+    expect(after((d) => { d.formula[7]!.mgPerCapsule = '76.0'; })).toEqual(['error TC-01 formula: The shell lines add up to 76 mg per capsule, not the shell weight 75.0 mg']);
+    expect(after((d) => { d.formula.pop(); })).toEqual(['error TC-01 formula: The formula has no empty shell line (place: shell)']);
+    expect(after((d) => { d.formula.push({ ...d.formula[7]!, key: 'shell-2', materialItemId: 'mat-sh2', code: 'MAT-009', name: 'Empty HPMC capsule size 1', mgPerCapsule: '0' }); })).toEqual(['error TC-01 formula: A hard capsule has one empty shell line']);
+    // A soft gel: the gel mass lines (gelatin, glycerol, water) add up to the wet gel mass per capsule.
+    const soft = (d: MasterDoc) => {
+      d.header.shellType = 'soft gelatin'; d.header.shellWeightMg = '300.0';
+      d.formula.splice(7, 1, ...[['gel', 'Gelatin', '150.0'], ['gly', 'Glycerol', '60.0'], ['gwat', 'Purified water (gel mass)', '90.0']]
+        .map(([key, name, mg]) => ({ ...d.formula[7]!, key: key!, materialItemId: `mat-${key}`, code: key!.toUpperCase(), name: name!, mgPerCapsule: mg! })));
+    };
+    expect(after(soft)).toEqual([]);
+    expect(after((d) => { soft(d); delete d.header.shellWeightMg; })).toEqual(['error TC-01 header.shellWeightMg: The master has no wet gel mass per capsule']);
+  });
+
+  it('the formula must add up to the theoretical fill weight (coating, shell and solvents left out)', () => {
+    expect(after((d) => { d.formula[4]!.mgPerCapsule = '17.0'; })).toEqual(['error - formula: The fill materials add up to 249.5 mg per capsule, not the theoretical fill weight 250.0 mg']);
     expect(after((d) => { d.formula[3]!.mgPerCapsule = '80.0'; d.formula[6]!.mgPerCapsule = '9.0'; d.header.coatedWeightMg = '259.0'; })).toEqual([]);
   });
 

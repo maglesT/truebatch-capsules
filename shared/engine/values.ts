@@ -4,7 +4,7 @@
  */
 import { Dec, findUnit, type Outcome, type Q, type ResultValue } from '../templates/index.js';
 import { findBlock, type Block, type BlockField } from '../blocks/index.js';
-import type { FormulaLine, Limit, MasterDoc, Pack, SettingValue, Step } from '../master/schema.js';
+import type { FormulaLine, HEADER_VALUES, Limit, MasterDoc, Pack, SettingValue, Step } from '../master/schema.js';
 import { callTemplate } from './templates.js';
 import { keyId, type StepEvent, type StepKey } from './state.js';
 import type { Source } from './links.js';
@@ -138,7 +138,7 @@ function refValue(doc: MasterDoc, events: readonly StepEvent[], here: StepKey, r
   return name in c.values ? c.values[name] : c.results[name] ? asQ(c.results[name]) : undefined;
 }
 
-const tablets = (doc: MasterDoc) => `${doc.header.batchSize} tablets`;
+const tablets = (doc: MasterDoc) => `${doc.header.batchSize} capsules`;
 const perBatch = (mg: string, doc: MasterDoc) => callTemplate('T8', { mode: 'per unit', perUnit: `${mg} mg`, count: tablets(doc), unit: 'kg' });
 
 /** The pack facts a packing block's calculations read as "$pack.name" (shared/blocks/format.ts PACK_FACTS). */
@@ -148,8 +148,10 @@ export function packFacts(p: Pack): Record<string, string> {
 }
 
 /** A header value: as written, or the batch weight (T8: weight per tablet × batch size). */
-export function headerValue(doc: MasterDoc, h: 'batchSize' | 'fillWeight' | 'coatedWeight' | 'fillBatch' | 'coatedBatch'): string | Stored {
-  const { fillWeightMg: core, coatedWeightMg: coated } = doc.header;
+export function headerValue(doc: MasterDoc, h: (typeof HEADER_VALUES)[number]): string | Stored {
+  const { fillWeightMg: core, coatedWeightMg: coated, shellWeightMg: shell } = doc.header;
+  if (h === 'shellWeight') return `${shell} mg`;
+  if (h === 'filledWeight') return `${new Dec(core).plus(shell ?? '0').toString()} mg`;
   if (h === 'batchSize') return tablets(doc);
   if (h === 'fillWeight') return `${core} mg`;
   if (h === 'fillBatch') return store(perBatch(core, doc));

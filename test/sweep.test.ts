@@ -93,7 +93,7 @@ function crashes(doc: MasterDoc, all: boolean): string[] {
   return out;
 }
 
-const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1000', fillWeightMg: '100.0', coatedWeightMg: '103.0', dispensingRooms: ['DSP-01'] };
+const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1000', fillWeightMg: '100.0', coatedWeightMg: '103.0', shellType: 'hard gelatin', shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['DSP-01'] };
 const formula = [{ key: 'x', materialItemId: 'm', code: 'M', name: 'M', mgPerCapsule: '100.0', role: 'api', place: 'intragranular',
   adjust: { potency: { basis: 'as is', standardIs: 'anhydrous' }, overage: { percent: '2' } } }];
 /** A small master of one block with all its settings set; a packing block after the bulk issue (its batch facts). */

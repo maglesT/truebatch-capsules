@@ -36,7 +36,7 @@ describe('calculation checks ⛔ from the formulation test', () => {
     ['F0250 one material twice in one place with two quantities (HPC 570 g and 250 g per 10 000 tablets)',
       (d) => { d.formula.push({ ...d.formula[2]!, key: 'hpc-2', mgPerCapsule: '25.0' }); d.formula[2]!.mgPerCapsule = '57.0'; },
       (d) => { d.formula.push({ ...d.formula[2]!, key: 'hpc-2', mgPerCapsule: '25.0', place: 'extragranular' }); },
-      'formula[7]', /Povidone K30 appears twice in the binder part with two quantities \(57\.0 and 25\.0 mg/],
+      'formula[8]', /Povidone K30 appears twice in the binder part with two quantities \(57\.0 and 25\.0 mg/],
     ['F0122 API per tablet above the label claim without a declared overage (22 mg in a 20 mg tablet)',
       (d) => { Object.assign(d.formula[0]!, { mgPerCapsule: '22.0', labelClaim: '20 mg' }); },
       (d) => { Object.assign(d.formula[0]!, { mgPerCapsule: '20.0', labelClaim: '20 mg', adjust: { overage: { percent: '10.0' } } }); },
@@ -60,7 +60,7 @@ describe('calculation checks ⛔ from the formulation test', () => {
       (d) => { d.formula[4]!.adjust = { content: { formulaQuantityIs: 'dry', contentSource: 'in-process result', resultType: 'percent of theoretical', nominalContent: '30 %' } }; },
       'formula[4].adjust', /State what the in-process result for Microcrystalline cellulose is: the content \(% w\/w\) or a relative assay in % of theoretical/],
     ['F0042 coating lines that do not add up to the coated − core weight (7.0 against 7.5 mg)',
-      (d) => { d.formula[6]!.mgPerCapsule = '7.0'; }, () => {}, 'formula', /coating materials add up to 7 mg per tablet, not the coated − core weight 7\.5 mg/],
+      (d) => { d.formula[6]!.mgPerCapsule = '7.0'; }, () => {}, 'formula', /coating materials add up to 7 mg per capsule, not the coated − fill weight 7\.5 mg/],
   ])('calculation check ⛔ %s', (_what, bad, fixed, path, message) => {
     expect(only('error', path)(bad)).toEqual([expect.stringMatching(message)]);
     expect(only('error', path)(fixed)).toEqual([]);

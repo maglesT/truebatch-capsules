@@ -14,7 +14,8 @@ export type Kind =
   | 'fraction' | 'mass concentration' | 'density' | 'rotation speed' | 'angle' | 'mass per area' | 'Strong-Cobb hardness'
   | 'mass rate' | 'volume rate' | 'count rate' | 'current' | 'power' | 'specific energy'
   | 'relative humidity' | 'absolute humidity' | 'absolute humidity per volume' | 'log' | 'frequency' | 'rpm per Hz' | 'charge'
-  | 'IU' | 'CFU' | 'activity units' | 'IU per mass' | 'CFU per mass' | 'activity units per mass' | 'mass per IU';
+  | 'IU' | 'CFU' | 'activity units' | 'IU per mass' | 'CFU per mass' | 'activity units per mass' | 'mass per IU'
+  | 'dynamic viscosity' | 'specific surface area';
 
 export interface Unit {
   readonly symbol: string;
@@ -33,12 +34,15 @@ const CFM = d('28316.846592').times(60); // mL/h: 1 ft³ = 28 316.846592 mL exac
 // symbol, kind, factor (to base), offset — base unit of each kind is the one with factor 1.
 const TABLE: [string, Kind, Dec | string, string?][] = [
   ['', 'number', '1'],
-  ['units', 'count', '1'], ['tablets', 'count', '1'], ['packs', 'count', '1'], ['nos', 'count', '1'], // nos: pieces, as master data counts them
+  ['units', 'count', '1'], ['tablets', 'count', '1'], ['capsules', 'count', '1'], ['packs', 'count', '1'], ['nos', 'count', '1'], // nos: pieces, as master data counts them
   ['µg', 'mass', '0.000001'], ['mg', 'mass', '0.001'], ['g', 'mass', '1'], ['kg', 'mass', '1000'],
   ['mm³', 'volume', '0.001'], ['µL', 'volume', '0.001'], ['mL', 'volume', '1'], ['L', 'volume', '1000'], ['m³', 'volume', '1000000'],
   ['US gal', 'volume', US_GALLON], ['imp gal', 'volume', '4546.09'], // an imperial gallon is 20 % larger
-  ['µm', 'length', '0.001'], ['mm', 'length', '1'], ['cm', 'length', '10'], ['m', 'length', '1000'],
+  ['nm', 'length', '0.000001'], ['µm', 'length', '0.001'], ['mm', 'length', '1'], ['cm', 'length', '10'], ['m', 'length', '1000'],
   ['mm²', 'area', '1'], ['cm²', 'area', '100'],
+  // Gel mass and fill medicine viscosity (1 cP = 1 mPa·s); crystal lot surface area.
+  ['mPa·s', 'dynamic viscosity', '1'], ['cP', 'dynamic viscosity', '1'], ['Pa·s', 'dynamic viscosity', '1000'],
+  ['cm²/g', 'specific surface area', '1'], ['m²/g', 'specific surface area', '10000'],
   ['s', 'time', '1'], ['min', 'time', '60'], ['h', 'time', '3600'], ['d', 'time', '86400'],
   ['°C', 'temperature', '1', '0'], ['K', 'temperature', '1', '-273.15'],
   ['°F', 'temperature', d(5).div(9), d(-160).div(9).toString()], // °C = (°F − 32) × 5/9
@@ -60,7 +64,7 @@ const TABLE: [string, Kind, Dec | string, string?][] = [
   ['SCU', 'Strong-Cobb hardness', '1'],
   ['g/h', 'mass rate', '1'], ['g/min', 'mass rate', '60'], ['kg/h', 'mass rate', '1000'], ['g/s', 'mass rate', '3600'],
   ['mL/h', 'volume rate', '1'], ['mL/min', 'volume rate', '60'], ['L/h', 'volume rate', '1000'], ['L/min', 'volume rate', '60000'], ['m³/h', 'volume rate', '1000000'], ['cfm', 'volume rate', CFM],
-  ['units/h', 'count rate', '1'], ['units/min', 'count rate', '60'], ['tablets/h', 'count rate', '1'], ['tablets/min', 'count rate', '60'],
+  ['units/h', 'count rate', '1'], ['units/min', 'count rate', '60'], ['tablets/h', 'count rate', '1'], ['tablets/min', 'count rate', '60'], ['capsules/h', 'count rate', '1'], ['capsules/min', 'count rate', '60'],
   ['mA', 'current', '0.001'], ['A', 'current', '1'],
   ['W', 'power', '1'], ['kW', 'power', '1000'],
   ['kJ/kg', 'specific energy', '1'], ['kWh/kg', 'specific energy', '3600'],
@@ -84,7 +88,7 @@ const ALIASES: Record<string, string> = {
   ug: 'µg', 'mcg/mg': 'µg/mg', 'ug/mg': 'µg/mg', mcg: 'µg', μg: 'µg', ml: 'mL', l: 'L', uL: 'µL', μL: 'µL', 'cm3': 'mL', 'cm³': 'mL', mm3: 'mm³', deg: '°', 'mg/cm2': 'mg/cm²', 'g/m2': 'g/m²', um: 'µm', μm: 'µm',
   mm2: 'mm²', cm2: 'cm²', sec: 's', hr: 'h', degC: '°C', degF: '°F', kP: 'kp', Kp: 'kp',
   '% w/w': '%w/w', '% w/v': '%w/v', '% RH': '%RH', RH: '%RH', cfu: 'CFU', 'cfu/g': 'CFU/g', 'cfu/mg': 'CFU/mg',
-  'kg/cm²': 'kgf/cm²', 'N/mm2': 'N/mm²', 'g/m3': 'g/m³', 'ft³/min': 'cfm', 'ft3/min': 'cfm', meq: 'mEq', mEQ: 'mEq', 'US gallon': 'US gal', 'imperial gallon': 'imp gal', 'kg/cm2': 'kgf/cm²', 'g/cm3': 'g/cm³', 'm3/h': 'm³/h', tablet: 'tablets', unit: 'units', pack: 'packs', no: 'nos', 'nos.': 'nos',
+  'kg/cm²': 'kgf/cm²', 'N/mm2': 'N/mm²', 'g/m3': 'g/m³', 'ft³/min': 'cfm', 'ft3/min': 'cfm', meq: 'mEq', mEQ: 'mEq', 'US gallon': 'US gal', 'imperial gallon': 'imp gal', 'kg/cm2': 'kgf/cm²', 'g/cm3': 'g/cm³', 'm3/h': 'm³/h', tablet: 'tablets', capsule: 'capsules', caps: 'capsules', cps: 'cP', 'mPa.s': 'mPa·s', 'Pa.s': 'Pa·s', unit: 'units', pack: 'packs', no: 'nos', 'nos.': 'nos',
 };
 
 /** Every unit symbol with its kind, in table order (the designer's unit pick lists). */

@@ -140,13 +140,25 @@ export function masterChecks(doc: MasterDoc): Problem[] {
 function formulaChecks(doc: MasterDoc, out: Problem[], error: (path: string, message: string, rule?: string) => void): void {
   const twice = (keys: string[], path: string) => keys.forEach((k, i) => keys.indexOf(k) !== i && error(`${path}[${i}]`, `The key ${k} is used twice`));
   twice(doc.formula.map((l) => l.key), 'formula');
-  const core = doc.formula.filter((l) => l.place !== 'coating' && l.role !== 'solvent');
+  const core = doc.formula.filter((l) => l.place !== 'coating' && l.place !== 'shell' && l.role !== 'solvent');
   const total = t2Total({ values: core.map((l) => `${l.mgPerCapsule} mg`), unit: 'mg' });
-  if (!core.length) error('formula', 'The formula has no core materials');
+  if (!core.length) error('formula', 'The formula has no fill materials');
   else if (total.ok && !total.value.eq(new Dec(doc.header.fillWeightMg))) {
-    error('formula', `The core materials add up to ${total.value.toString()} mg per tablet, not the theoretical core weight ${doc.header.fillWeightMg} mg`);
+    error('formula', `The fill materials add up to ${total.value.toString()} mg per capsule, not the theoretical fill weight ${doc.header.fillWeightMg} mg`);
   }
-  if (doc.header.coatedWeightMg && new Dec(doc.header.coatedWeightMg).lt(doc.header.fillWeightMg)) error('header.coatedWeightMg', 'The coated weight is below the core weight');
+  // TC-01: the shell: its type and weight; the shell lines (an empty hard shell at its mean weight, or a soft gel's gel
+  // mass lines with their water) add up to the shell weight per capsule.
+  const h = doc.header;
+  if (!h.shellType) error('header.shellType', 'The master names no shell type (hard gelatin, HPMC or soft gelatin)', 'TC-01');
+  if (!h.shellWeightMg) error('header.shellWeightMg', h.shellType === 'soft gelatin' ? 'The master has no wet gel mass per capsule' : 'The master has no mean empty shell weight', 'TC-01');
+  const shell = doc.formula.filter((l) => l.place === 'shell');
+  if (!shell.length) error('formula', h.shellType === 'soft gelatin' ? 'The formula has no gel mass lines (place: shell)' : 'The formula has no empty shell line (place: shell)', 'TC-01');
+  else if (h.shellWeightMg) {
+    const sum = shell.reduce((t, l) => t.plus(l.mgPerCapsule), new Dec(0));
+    if (!sum.eq(h.shellWeightMg)) error('formula', `The shell lines add up to ${sum.toString()} mg per capsule, not the shell weight ${h.shellWeightMg} mg`, 'TC-01');
+  }
+  if (h.shellType && h.shellType !== 'soft gelatin' && shell.length > 1) error('formula', 'A hard capsule has one empty shell line', 'TC-01');
+  if (doc.header.coatedWeightMg && new Dec(doc.header.coatedWeightMg).lt(doc.header.fillWeightMg)) error('header.coatedWeightMg', 'The coated weight is below the fill weight');
   if (doc.formula.some((l) => l.place === 'coating') && !doc.header.coatedWeightMg) error('header.coatedWeightMg', 'A coated product needs the theoretical coated weight');
   doc.formula.forEach((l, i) => {
     const a = l.adjust;
@@ -198,14 +210,14 @@ function formulaSums(doc: MasterDoc, error: (path: string, message: string) => v
     }
     const twin = doc.formula.findIndex((x, j) => j < i && x.materialItemId === l.materialItemId && x.place === l.place && x.layer === l.layer);
     if (twin >= 0 && !new Dec(doc.formula[twin]!.mgPerCapsule).eq(l.mgPerCapsule)) {
-      error(`formula[${i}]`, `${l.name} appears twice in the ${l.place} part with two quantities (${doc.formula[twin]!.mgPerCapsule} and ${l.mgPerCapsule} mg per tablet): keep one line with the quantity that is charged`);
+      error(`formula[${i}]`, `${l.name} appears twice in the ${l.place} part with two quantities (${doc.formula[twin]!.mgPerCapsule} and ${l.mgPerCapsule} mg per capsule): keep one line with the quantity that is charged`);
     }
   });
   const coat = doc.formula.filter((l) => l.place === 'coating' && l.role !== 'solvent');
   if (coat.length && doc.header.coatedWeightMg) {
     const sum = coat.reduce((t, l) => t.plus(l.mgPerCapsule), new Dec(0));
     const gain = new Dec(doc.header.coatedWeightMg).minus(doc.header.fillWeightMg);
-    if (!sum.eq(gain)) error('formula', `The coating materials add up to ${sum.toString()} mg per tablet, not the coated − core weight ${gain.toString()} mg`);
+    if (!sum.eq(gain)) error('formula', `The coating materials add up to ${sum.toString()} mg per capsule, not the coated − fill weight ${gain.toString()} mg`);
   }
 }
 

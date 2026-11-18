@@ -111,7 +111,7 @@ describe('demo skip through the server', () => {
   beforeAll(async () => {
     t = await freshApp(undefined, CAPSULES, true);
     t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
-    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' });
+    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
     const people = { author: ['truebatch_capsules.master.author'], issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.demo.skip'],
       ravi: ['truebatch_capsules.batch.operate'], meera: ['truebatch_capsules.qa.release'] } as const;
     for (const [name, perms] of Object.entries(people)) {
