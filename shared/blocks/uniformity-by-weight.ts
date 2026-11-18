@@ -15,7 +15,8 @@ export const uniformityByWeight: Block = {
   ],
   settings: [
     { name: 'coating', label: 'Dosage unit', kind: 'text', options: ['hard capsule', 'soft capsule, solution fill'] },
-    { name: 'labelClaim', label: 'Label claim per capsule', kind: 'quantity' },
+    // A formula line gives its label claim per capsule (never its batch quantity): pulled from the API line.
+    { name: 'labelClaim', label: 'Label claim per capsule', kind: 'quantity', formulaField: 'labelClaim' },
   ],
   calcs: [
     { name: 'acceptance', label: 'Content uniformity', template: 'T14', args: { method: 'weight variation', coating: '$coating', weights: { units: caps.map((c) => `$${c}`), combine: 'first minus rest' }, assay: '$assay', labelClaim: '$labelClaim' } },

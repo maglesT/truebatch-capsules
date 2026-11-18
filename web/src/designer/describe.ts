@@ -53,7 +53,7 @@ export function stepText(doc: MasterDoc, t: Step, j: number, units?: Units): str
     if (name === 'unit' && typeof v === 'string' && v) return unitName(v, stock);
     // A material picked from the formula by its name and code, as the floor names it (not "the batch quantity of").
     const line = b.settings.find((x) => x.name === name)?.kind === 'material' && typeof v === 'object' && 'formula' in v ? materialLines(doc).find((l) => l.key === v.formula) : undefined;
-    return line ? `${line.name} (${line.code})` : settingText(doc, v);
+    return line ? `${line.name} (${line.code})` : settingText(doc, v, b.settings.find((x) => x.name === name));
   };
   const loose = b.settings.filter((s) => !slots.has(s.name) && t.settings[s.name] !== undefined).map((s) => `${s.label.replace(/ \(formula line\)$/, '')}: ${shown(s.name)}.`);
   const calcs = b.calcs.map((c) => sentenceText(doc, b, t.settings, sentence(b, c)));

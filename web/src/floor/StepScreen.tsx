@@ -12,7 +12,7 @@ import { DemoSkip } from './DemoSkip.js';
 import { ReasonDialog } from './ReasonDialog.js';
 import { CERTIFICATE, fieldLabel, handEntered, LINK_OF } from '../../../shared/engine/links.js';
 import { askedFields, cutShort, notYetText } from '../../../shared/engine/batch.js';
-import { lineQuantity } from '../../../shared/engine/values.js';
+import { lineField, lineQuantity } from '../../../shared/engine/values.js';
 import { plantText } from '../../../shared/plant-time.js';
 import { dispensingRooms, emptyNote, inLogbook, machineRefusal, roomRefusal } from '../../../shared/engine/picks.js';
 import { materialLines } from '../../../shared/master/schema.js';
@@ -35,6 +35,11 @@ function settingsText(doc: BatchDetail['master']['doc'], block: Block, st: Step,
     const v = st.settings[s.name];
     const m = v && typeof v === 'object' && 'formula' in v ? materialLines(doc).find((l) => l.key === v.formula) : undefined;
     const what = m && `${m.code} · ${m.name}${'perPack' in m ? ` (${m.kind}, ${perPackText(m, mdUnit)})` : ''}`;
+    // A formula line's label claim per capsule (formulaField), never its batch quantity.
+    if (m && s.formulaField && 'mgPerCapsule' in m) {
+      const r = lineField(m, s.formulaField, s.label);
+      return [[s.label, r.ok ? `${r.value} ${r.unit}, the label claim of ${what}` : r.message]];
+    }
     if (m && s.kind === 'quantity' && 'mgPerCapsule' in m && typeof v === 'object' && 'formula' in v) {
       // Worked out by the server once a value is recorded; before that, the batch quantity (an adjusted one needs the lot).
       const r = row.results[s.name] ?? (v.adjusted ? undefined : lineQuantity(doc, [], row.key, m, false, {}));

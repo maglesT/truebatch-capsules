@@ -1,6 +1,6 @@
 // The calculations and checks of a block written as sentences, never as formulas. A sentence is a list of parts:
 // plain words, a field the operator records, a calculation worked out earlier, or a setting the master fills (a slot).
-import type { Block } from '../../../shared/blocks/index.js';
+import type { Block, BlockSetting } from '../../../shared/blocks/index.js';
 import { findBlock } from '../../../shared/blocks/index.js';
 import { refsIn } from '../../../shared/blocks/format.js';
 import { materialLines, type Limit, type MasterDoc, type SettingValue } from '../../../shared/master/schema.js';
@@ -124,8 +124,8 @@ export function limitText(l: Limit): string {
   return [low, high].filter(Boolean).join(' and ') || 'no limits';
 }
 
-/** A setting's value in words. */
-export function settingText(doc: MasterDoc, v: SettingValue | undefined): string {
+/** A setting's value in words (`setting`: the block's setting, for one that reads a formula line's label claim). */
+export function settingText(doc: MasterDoc, v: SettingValue | undefined, setting?: BlockSetting): string {
   if (v === undefined) return '(not set)';
   if (typeof v === 'string') return v.trim() === '' ? '(none)' : v;
   if ('unit' in v) return limitText(v);
@@ -133,6 +133,7 @@ export function settingText(doc: MasterDoc, v: SettingValue | undefined): string
     const l = materialLines(doc).find((x) => x.key === v.formula);
     // A packing material by its name and code, as in the master's packing materials.
     if (l && 'perPack' in l) return `${l.name} (${l.code})`;
+    if (setting?.formulaField === 'labelClaim') return `the label claim of ${l?.name || v.formula}${l && 'labelClaim' in l && l.labelClaim ? ` (${l.labelClaim})` : ''}`;
     return `the batch quantity of ${l?.name || v.formula}${v.adjusted ? ', adjusted for the lot' : ''}`;
   }
   if ('header' in v) return HEADER_LABEL[v.header].label;
@@ -164,7 +165,7 @@ export function sentenceText(doc: MasterDoc, block: Block, settings: Record<stri
     const s = block.settings.find((x) => x.name === n);
     const v = settings[n];
     const unit = s?.kind === 'number' && typeof v === 'string' ? /\(([^()±]+)\)$/.exec(s.label)?.[1] : undefined;
-    return unit && findUnit(unit) ? `${v} ${unit}` : settingText(doc, v);
+    return unit && findUnit(unit) ? `${v} ${unit}` : settingText(doc, v, s);
   };
   return out.map((x) => (typeof x === 'string' ? x
     : 'setting' in x ? value(x.setting)
