@@ -62,10 +62,13 @@ const softgel = (suspension: boolean): StagePlan => ({ key: 'encapsulation', nam
   steps: [{ block: 'softgel-encapsulate', key: 'encapsulate', settings: (h) => ({ fillTarget: { header: 'fillWeight' },
     meanLimit: { low: pct(h, h.fillWeightMg, '-3'), high: pct(h, h.fillWeightMg, '3'), unit: 'mg' }, weightBand: '5.0' }) },
   { block: 'softgel-dry', key: 'tumble', name: 'Tumble drying', minMinutes: 120 }, { block: 'softgel-dry', key: 'tray', name: 'Tray drying', minMinutes: 2880 },
+  // The dried capsules weigh less than fill + wet gel mass (the shell loses its water): their mean weight is measured
+  // for the reconciliation by weight.
+  { block: 'check', key: 'dried-weight', settings: () => ({ what: 'Mean weight of 20 dried capsules', unit: 'mg' }) },
   { ...sortStep, name: 'Inspect and sort' },
   suspension ? { block: 'content-uniformity', settings: () => ({ coating: 'soft capsule, suspension fill' }) } : { block: 'uniformity-by-weight', settings: () => ({ coating: 'soft capsule, solution fill' }) },
   { block: 'disintegration', settings: () => ({ maxTime: '30' }) }, { block: 'qa-sample' },
-  { block: 'capsule-reconciliation', key: 'yield', settings: () => ({ theoretical: { header: 'batchSize' }, meanWeight: { header: 'filledWeight' },
+  { block: 'capsule-reconciliation', key: 'yield', settings: () => ({ theoretical: { header: 'batchSize' }, meanWeight: { ref: 'encapsulation/dried-weight/reading' },
     yieldLimit: { low: '95.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.0', high: '100.5', unit: '%' } }) }] });
 
 const SKELETONS: { id: string; name: string; text: string; stages: StagePlan[] }[] = [
