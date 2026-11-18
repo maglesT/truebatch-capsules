@@ -40,6 +40,12 @@ describe('audit trail', () => {
     expect(await code(t.owner`delete from audit_log`)).toBe('42501');
   });
 
+  it('a batch row is insert-only: the database owner cannot change, remove or truncate batches (Tablets round 34)', async () => {
+    expect(await code(t.owner`update batches set batch_no = batch_no`)).toBe('42501');
+    expect(await code(t.owner`delete from batches`)).toBe('42501');
+    expect(await code(t.owner`truncate batches cascade`)).toBe('42501');
+  });
+
   it('PL-06: the app role cannot choose the audit timestamp or id', async () => {
     expect(await code(t.sql`insert into audit_log (at, action, object_type) values (now() - interval '1 year', 'x', 'y')`)).toBe('42501');
     // The id is generated always (428C9 before any right is checked).
