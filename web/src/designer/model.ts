@@ -68,9 +68,9 @@ export function earlierRefs(doc: MasterDoc, si: number, ti: number): RefOption[]
 
 export const HEADER_LABEL: Record<(typeof HEADER_VALUES)[number], { label: string; kind: Kind }> = {
   batchSize: { label: 'the batch size (tablets)', kind: 'count' },
-  coreWeight: { label: 'the theoretical core tablet weight', kind: 'mass' },
+  fillWeight: { label: 'the theoretical core tablet weight', kind: 'mass' },
   coatedWeight: { label: 'the theoretical coated tablet weight', kind: 'mass' },
-  coreBatch: { label: 'the theoretical core batch weight', kind: 'mass' },
+  fillBatch: { label: 'the theoretical core batch weight', kind: 'mass' },
   coatedBatch: { label: 'the theoretical coated batch weight', kind: 'mass' },
 };
 

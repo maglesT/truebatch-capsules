@@ -18,7 +18,7 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
   const rooms = dispensingRoomChoices(md);
   const [picking, setPicking] = useState(!header.productItemId);
   const set = (k: keyof Header, v: string) => onChange({ ...header, [k]: v });
-  const core = batchWeight({ header } as MasterDoc, /^\d+(\.\d+)?$/.test(header.coreWeightMg) && /^[1-9]\d*$/.test(header.batchSize) ? header.coreWeightMg : undefined);
+  const core = batchWeight({ header } as MasterDoc, /^\d+(\.\d+)?$/.test(header.fillWeightMg) && /^[1-9]\d*$/.test(header.batchSize) ? header.fillWeightMg : undefined);
   return (
     <div className="header-fields">
       <div>
@@ -38,7 +38,7 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
       </div>
       <div className="form-grid">
         <label>Batch size (tablets)<Decimal label="Batch size (tablets)" value={header.batchSize} onChange={(v) => set('batchSize', v)} width={9} /></label>
-        <label>Theoretical core weight (mg per tablet)<Decimal label="Theoretical core weight (mg per tablet)" value={header.coreWeightMg} onChange={(v) => set('coreWeightMg', v)} /></label>
+        <label>Theoretical core weight (mg per tablet)<Decimal label="Theoretical core weight (mg per tablet)" value={header.fillWeightMg} onChange={(v) => set('fillWeightMg', v)} /></label>
         <label>Theoretical coated weight (mg per tablet)
           <Decimal label="Theoretical coated weight (mg per tablet)" placeholder="uncoated" value={header.coatedWeightMg}
             onChange={(v) => onChange(v ? { ...header, coatedWeightMg: v } : (({ coatedWeightMg: _, ...h }) => h)(header))} />
@@ -59,7 +59,7 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
 function OtherStrengths({ header, onChange }: { header: Header; onChange: (h: Header) => void }) {
   const list = header.otherStrengths ?? [];
   const put = (next: typeof list) => onChange(next.length ? { ...header, otherStrengths: next } : (({ otherStrengths: _, ...h }) => h)(header));
-  const set = (n: number, k: 'name' | 'labelClaim' | 'coreWeightMg', v: string) => put(list.map((x, i) => (i === n ? { ...x, [k]: v } : x)));
+  const set = (n: number, k: 'name' | 'labelClaim' | 'fillWeightMg', v: string) => put(list.map((x, i) => (i === n ? { ...x, [k]: v } : x)));
   return (
     <fieldset className="checklist">
       <legend>Other strengths from the same blend</legend>
@@ -67,11 +67,11 @@ function OtherStrengths({ header, onChange }: { header: Header; onChange: (h: He
         <div className="form-grid" key={n}>
           <label>Strength<input aria-label={`Strength ${n + 1}`} value={x.name} onChange={(e) => set(n, 'name', e.target.value)} /></label>
           <label>Label claim<input aria-label={`Label claim ${n + 1}`} placeholder="e.g. 50 mg" value={x.labelClaim} onChange={(e) => set(n, 'labelClaim', e.target.value)} /></label>
-          <label>Core weight (mg)<Decimal label={`Core weight ${n + 1}`} value={x.coreWeightMg} onChange={(v) => set(n, 'coreWeightMg', v)} /></label>
+          <label>Core weight (mg)<Decimal label={`Core weight ${n + 1}`} value={x.fillWeightMg} onChange={(v) => set(n, 'fillWeightMg', v)} /></label>
           <button type="button" className="link" onClick={() => put(list.filter((_, i) => i !== n))}>Remove</button>
         </div>
       ))}
-      <button type="button" className="link" onClick={() => put([...list, { name: '', labelClaim: '', coreWeightMg: '' }])}>Add a strength</button>
+      <button type="button" className="link" onClick={() => put([...list, { name: '', labelClaim: '', fillWeightMg: '' }])}>Add a strength</button>
     </fieldset>
   );
 }
@@ -85,7 +85,7 @@ export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
   // A new tablet master starts with no dispensing rooms: the author picks them (the rooms with a weighing balance are
   // listed first); every room of an area called Dispensing could be a segregated block's booth. A copy: those it names.
   const [header, setHeader] = useState<Header>({
-    ...(copyOf?.header ?? { productItemId: '', productCode: '', productName: '', batchSize: '', coreWeightMg: '' }) });
+    ...(copyOf?.header ?? { productItemId: '', productCode: '', productName: '', batchSize: '', fillWeightMg: '' }) });
   const skeletons = product.packing ? [{ id: 'packing', name: 'Packing record', text: 'Issue to the line, packing with the checks alongside the line, reconciliation and line clearance after, for this pack.' }] : SKELETON_LIST;
   const [start, setStart] = useState<Start>(copyOf ? { kind: 'copy', versionId: copyOf.id } : { kind: 'skeleton', id: skeletons[0]!.id });
   // A packing master: the pack (TC-P1), copied with the master it is copied from.
@@ -98,7 +98,7 @@ export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
     void getVersion(start.versionId).then((v) => {
       setSource(v.doc);
       if (v.doc.pack) setPack(v.doc.pack);
-      setHeader((h) => ({ ...h, coreWeightMg: h.coreWeightMg || v.doc.header.coreWeightMg, batchSize: h.batchSize || v.doc.header.batchSize,
+      setHeader((h) => ({ ...h, fillWeightMg: h.fillWeightMg || v.doc.header.fillWeightMg, batchSize: h.batchSize || v.doc.header.batchSize,
         ...(v.doc.header.coatedWeightMg && !h.coatedWeightMg ? { coatedWeightMg: v.doc.header.coatedWeightMg } : {}) }));
     });
   }, [start.kind === 'copy' ? start.versionId : 0]);
@@ -112,7 +112,7 @@ export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
     const parsed = masterSchema.safeParse(doc);
     if (!header.productItemId) return setError('Pick the product.');
     if (pack && !pack.bulkItemId) return setError('Pick the bulk product.');
-    if (!parsed.success) return setError(parsed.error.issues.map((i) => `${i.path.at(-1) === 'batchSize' ? 'Batch size' : i.path.at(-1) === 'coreWeightMg' ? 'Core weight' : i.path.join('.')}: ${i.message}`).join('; '));
+    if (!parsed.success) return setError(parsed.error.issues.map((i) => `${i.path.at(-1) === 'batchSize' ? 'Batch size' : i.path.at(-1) === 'fillWeightMg' ? 'Core weight' : i.path.join('.')}: ${i.message}`).join('; '));
     setBusy(true);
     try {
       onCreated((await createMaster(parsed.data)).id);

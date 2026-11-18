@@ -21,7 +21,7 @@ const yieldStep = (theoretical: SettingValue): StepPlan => ({ block: 'stage-yiel
   theoretical, yieldLimit: { low: '97.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.0', high: '100.5', unit: '%' } }) });
 const weighStep = (key: string): StepPlan => ({ block: 'weigh', key });
 const compressStep: StepPlan = { block: 'compress', settings: (h) => ({
-  meanLimit: { low: pct(h, h.coreWeightMg, '-5'), high: pct(h, h.coreWeightMg, '5'), unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0' }) };
+  meanLimit: { low: pct(h, h.fillWeightMg, '-5'), high: pct(h, h.fillWeightMg, '5'), unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0' }) };
 // TC-16: the tooling is checked before and after compression; friability and disintegration are tested on the cores;
 // the tablets are reconciled at the end.
 const tooling = (key: string, name: string): StepPlan => ({ block: 'punch-die-check', key, name });
@@ -41,7 +41,7 @@ const WET: StagePlan[] = [
     steps: [weighStep('weigh-api'), { block: 'sift' }, { block: 'charge', key: 'charge-api' }, { block: 'dry-mix' }, { block: 'granulate', checker: true }, { block: 'dry' },
       { block: 'sieve', key: 'mill' }, yieldStep('')] },
   { key: 'blending', name: 'Blending', role: 'Granulation operator', produces: ['lubricated blend', 72], uses: ['granulation'],
-    steps: [{ block: 'lubricate', settings: () => ({ granuleWeight: { ref: 'granulation/yield/output' }, tolerance: '0.5' }) }, { block: 'blend-uniformity' }, yieldStep({ header: 'coreBatch' })] },
+    steps: [{ block: 'lubricate', settings: () => ({ granuleWeight: { ref: 'granulation/yield/output' }, tolerance: '0.5' }) }, { block: 'blend-uniformity' }, yieldStep({ header: 'fillBatch' })] },
 ];
 const wetCompression = (produces: string): StagePlan => ({ key: 'compression', name: 'Compression', role: 'Compression operator', rooms: ['Compression'], produces: [produces, 720], uses: ['blending'], steps: compression });
 
@@ -68,7 +68,7 @@ const SKELETONS: { id: string; name: string; text: string; stages: StagePlan[] }
     text: 'Sifting and blending of the dispensed materials, then compression.',
     stages: [
       { key: 'blending', name: 'Blending', role: 'Production operator', produces: ['blend', 72],
-        steps: [weighStep('weigh'), { block: 'sift' }, { block: 'dry-mix', key: 'blend' }, yieldStep({ header: 'coreBatch' })] },
+        steps: [weighStep('weigh'), { block: 'sift' }, { block: 'dry-mix', key: 'blend' }, yieldStep({ header: 'fillBatch' })] },
       { key: 'compression', name: 'Compression', role: 'Compression operator', rooms: ['Compression'], produces: ['bulk tablets', 720], uses: ['blending'], steps: compression },
     ],
   },
@@ -115,7 +115,7 @@ export function packingStages(pack: Pack): Stage[] {
       ...(blister ? [packStep('forming-check', 'forming'), packStep('leak-test', 'leak', { vacuumUnit: 'mbar', level: 'S-2', aql: '0.65' })] : []),
       packStep('online-inspection', 'inspection'), packStep('carton-check', 'cartons'), ...(serial ? [packStep('serial-sample', 'serial-sample')] : [])], ['Packing']),
     packStage('end', 'Reconciliation and line clearance', 'Packing supervisor', [
-      packStep('finished-goods', 'finished', { meanWeight: { header: 'coreWeight' }, yieldLimit: { low: '98.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.5', high: '100.5', unit: '%' } }),
+      packStep('finished-goods', 'finished', { meanWeight: { header: 'fillWeight' }, yieldLimit: { low: '98.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.5', high: '100.5', unit: '%' } }),
       ...pack.materials.filter((m) => m.printed).map(reconcileStep),
       ...(serial ? [packStep('serial-reconciliation', 'serial-reconciliation', { received: { ref: 'packing/serials/received' } })] : []),
       packStep('destruction'), packStep('pack-clearance-after', 'clearance-after')], ['Packing']),

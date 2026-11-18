@@ -13,7 +13,7 @@ import { Decimal, Order, Picker } from './ui.js';
 type Adjust = NonNullable<FormulaLine['adjust']>;
 const HERE = { stage: 0, sub: 1, step: 0, round: 1 };
 const PLACES = [['intragranular', 'Intragranular'], ['extragranular', 'Extragranular'], ['binder', 'Binder solution'], ['coating:1', 'Coating layer 1'], ['coating:2', 'Coating layer 2'], ['coating:3', 'Coating layer 3']] as const;
-const total = (lines: FormulaLine[]) => { const r = t2Total({ values: lines.map((l) => `${l.mgPerTablet || '0'} mg`), unit: 'mg' }); return r.ok ? r.value : null; };
+const total = (lines: FormulaLine[]) => { const r = t2Total({ values: lines.map((l) => `${l.mgPerCapsule || '0'} mg`), unit: 'mg' }); return r.ok ? r.value : null; };
 
 export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, problems, onAnswer }: {
   doc: MasterDoc; onChange: (d: MasterDoc) => void; md: MasterData; masters: MasterRow[]; selected?: number; onSelect: (i?: number) => void; problems: Problem[]; onAnswer?: OnAnswer;
@@ -26,9 +26,9 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
   const valid = (mg: string) => /^\d+(\.\d+)?$/.test(mg);
   const core = lines.filter((l) => l.place !== 'coating' && l.role !== 'solvent');
   const coat = lines.filter((l) => l.place === 'coating');
-  const coreTotal = core.every((l) => valid(l.mgPerTablet)) ? total(core) : null;
-  const coatTotal = coat.every((l) => valid(l.mgPerTablet)) ? total(coat) : null;
-  const gain = doc.header.coatedWeightMg && valid(doc.header.coatedWeightMg) && valid(doc.header.coreWeightMg) ? new Dec(doc.header.coatedWeightMg).minus(doc.header.coreWeightMg) : null;
+  const coreTotal = core.every((l) => valid(l.mgPerCapsule)) ? total(core) : null;
+  const coatTotal = coat.every((l) => valid(l.mgPerCapsule)) ? total(coat) : null;
+  const gain = doc.header.coatedWeightMg && valid(doc.header.coatedWeightMg) && valid(doc.header.fillWeightMg) ? new Dec(doc.header.coatedWeightMg).minus(doc.header.fillWeightMg) : null;
   const sel = selected === undefined ? undefined : lines[selected];
 
   return (
@@ -44,13 +44,13 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
                 return (
                   <tr key={l.key} className={selected === i ? 'sel' : bad ? 'bad-row' : ''} onClick={() => onSelect(i)}>
                     <td><b>{l.code}</b><span className="cell-sub">{l.name}</span></td>
-                    <td><Decimal label={`mg per tablet of ${l.name}`} value={l.mgPerTablet} onChange={(v) => put(i, { ...l, mgPerTablet: v })} /></td>
+                    <td><Decimal label={`mg per tablet of ${l.name}`} value={l.mgPerCapsule} onChange={(v) => put(i, { ...l, mgPerCapsule: v })} /></td>
                     <td><select aria-label={`Role of ${l.name}`} value={l.role} onChange={(e) => put(i, { ...l, role: e.target.value as FormulaLine['role'] })}>
                       <option value="api">API</option><option value="excipient">Excipient</option><option value="solvent">Removed in processing (solvent, processing aid)</option></select></td>
                     <td><select aria-label={`Place of ${l.name}`} value={l.place === 'coating' ? `coating:${l.layer ?? 1}` : l.place}
                       onChange={(e) => { const [place, layer] = e.target.value.split(':'); const { layer: _, ...rest } = l; put(i, { ...rest, place: place as FormulaLine['place'], ...(layer ? { layer: Number(layer) } : {}) }); }}>
                       {PLACES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></td>
-                    <td className="nowrap num">{valid(l.mgPerTablet) && /^[1-9]\d*$/.test(doc.header.batchSize) ? qtyText(lineQuantity(doc, [], HERE, l, false, {})) : '—'}</td>
+                    <td className="nowrap num">{valid(l.mgPerCapsule) && /^[1-9]\d*$/.test(doc.header.batchSize) ? qtyText(lineQuantity(doc, [], HERE, l, false, {})) : '—'}</td>
                     <td><button type="button" className="link dark" onClick={(e) => { e.stopPropagation(); onSelect(i); }}>{adjustSummary(l.adjust)}</button></td>
                     <td><Order index={i} count={lines.length} what={l.name} onMove={(by) => set(move(lines, i, by))} onRemove={() => { set(lines.filter((_, j) => j !== i)); onSelect(undefined); }} /></td>
                   </tr>
@@ -61,7 +61,7 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
           </table>
         </div>
         <div className="totals">
-          <Total label="Core materials" value={coreTotal} target={valid(doc.header.coreWeightMg) ? new Dec(doc.header.coreWeightMg) : null} what="the theoretical core weight" />
+          <Total label="Core materials" value={coreTotal} target={valid(doc.header.fillWeightMg) ? new Dec(doc.header.fillWeightMg) : null} what="the theoretical core weight" />
           {(coat.length > 0 || doc.header.coatedWeightMg) && <Total label="Coating" value={coatTotal} target={gain} what="the weight gain (coated − core weight)" />}
         </div>
         {adding ? (
@@ -69,7 +69,7 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
             <Picker label="Material" first={linked} firstLabel={`Materials of ${doc.header.productCode} in other masters`}
               items={md.materials.map((m) => ({ id: m.itemId, code: m.code, name: m.name, note: m.category ?? undefined, off: !m.active ? 'inactive' : lines.some((l) => l.materialItemId === m.itemId) ? 'in the formula' : undefined }))}
               onPick={(m) => {
-                const line: FormulaLine = { key: newKey(m.code, lines.map((l) => l.key)), materialItemId: m.id, code: m.code, name: m.name, mgPerTablet: '', role: 'excipient', place: 'intragranular' };
+                const line: FormulaLine = { key: newKey(m.code, lines.map((l) => l.key)), materialItemId: m.id, code: m.code, name: m.name, mgPerCapsule: '', role: 'excipient', place: 'intragranular' };
                 set([...lines, line]); onSelect(lines.length); setAdding(false);
               }} />
             <div className="actions"><button type="button" onClick={() => setAdding(false)}>Close</button></div>

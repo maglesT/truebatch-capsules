@@ -79,7 +79,7 @@ export function describeMaster(doc: MasterDoc, units?: Units): Section[] {
   const top: Section[] = p ? [
     { key: 'header', title: 'Pack', lines: [
       { key: 'product', text: `Pack product ${h.productCode}, ${h.productName}.` },
-      { key: 'bulk', text: `Packs the bulk tablets ${p.bulkCode}, ${p.bulkName}; tablet weight ${h.coreWeightMg} mg (for counts by weight).` },
+      { key: 'bulk', text: `Packs the bulk tablets ${p.bulkCode}, ${p.bulkName}; tablet weight ${h.fillWeightMg} mg (for counts by weight).` },
       { key: 'batch', text: `Standard packing batch ${grouped(h.batchSize)} tablets.` },
       { key: 'pack', text: `${p.type[0]!.toUpperCase()}${p.type.slice(1)} of ${p.unitsPerPack} tablets; ${p.packsPerCarton} packs per carton.` },
       { key: 'expiry', text: `Approved shelf life ${p.shelfLifeMonths} months; expiry ${p.expiryRule === 'same month' ? 'month of manufacture + shelf life' : 'month of manufacture + shelf life − 1'}.` },
@@ -92,12 +92,12 @@ export function describeMaster(doc: MasterDoc, units?: Units): Section[] {
     { key: 'header', title: 'Header', lines: [
       { key: 'product', text: `Product ${h.productCode}, ${h.productName}.` },
       { key: 'batch', text: `Batch size ${grouped(h.batchSize)} tablets.` },
-      { key: 'weights', text: `Theoretical core weight ${h.coreWeightMg} mg per tablet${h.coatedWeightMg ? `; coated weight ${h.coatedWeightMg} mg` : '; uncoated'}${h.dieAreaMm2 ? `; die bore area ${h.dieAreaMm2} mm²` : ''}.` },
+      { key: 'weights', text: `Theoretical core weight ${h.fillWeightMg} mg per tablet${h.coatedWeightMg ? `; coated weight ${h.coatedWeightMg} mg` : '; uncoated'}${h.dieAreaMm2 ? `; die bore area ${h.dieAreaMm2} mm²` : ''}.` },
       ...(h.dispensingRooms?.length ? [{ key: 'dispensing', text: `Weighed in the dispensing rooms ${h.dispensingRooms.join(', ')}.` }] : []),
-      ...(h.otherStrengths ?? []).map((x, n) => ({ key: `strength:${n}`, text: `Also compressed from the same blend: ${x.name}, label claim ${x.labelClaim}, core weight ${x.coreWeightMg} mg.` })),
+      ...(h.otherStrengths ?? []).map((x, n) => ({ key: `strength:${n}`, text: `Also compressed from the same blend: ${x.name}, label claim ${x.labelClaim}, core weight ${x.fillWeightMg} mg.` })),
     ] },
     { key: 'formula', title: 'Formula', lines: doc.formula.map((l) => ({ key: l.key,
-      text: `${l.name} (${l.code}), ${ROLE[l.role]}, ${PLACE[l.place]}${l.place === 'coating' ? ` layer ${l.layer ?? 1}` : ''}: ${l.mgPerTablet} mg per tablet${l.labelClaim ? ` (label claim ${l.labelClaim})` : ''}${l.batchQuantity ? ` (batch quantity written as ${l.batchQuantity})` : ''}${adjustText(doc, l)}.` })) },
+      text: `${l.name} (${l.code}), ${ROLE[l.role]}, ${PLACE[l.place]}${l.place === 'coating' ? ` layer ${l.layer ?? 1}` : ''}: ${l.mgPerCapsule} mg per tablet${l.labelClaim ? ` (label claim ${l.labelClaim})` : ''}${l.batchQuantity ? ` (batch quantity written as ${l.batchQuantity})` : ''}${adjustText(doc, l)}.` })) },
   ];
   return [
     ...top,

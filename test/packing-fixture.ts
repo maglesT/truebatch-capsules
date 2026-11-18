@@ -27,7 +27,7 @@ export function packing(x: Partial<Pack> = {}): MasterDoc {
     if (t.block.id === 'bulk-issue') t.checker = true;
   }
   stages[0]!.machineTypes = ['blister line'];
-  return masterSchema.parse({ header: { productItemId: 'pk-1', productCode: 'PK-001', productName: 'Examplol 100 mg tablets, 10 x 10 blister', batchSize: '100000', coreWeightMg: '250.0' },
+  return masterSchema.parse({ header: { productItemId: 'pk-1', productCode: 'PK-001', productName: 'Examplol 100 mg tablets, 10 x 10 blister', batchSize: '100000', fillWeightMg: '250.0' },
     formula: [], stages, pack: p });
 }
 

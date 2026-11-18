@@ -16,7 +16,7 @@ export const limitSchema = z.object({
 
 // A step setting: a value as written ("0.5", "250.0 mg"), a limit, or a reference to an earlier step's field or
 // calculation ("stage/step/name"), to a formula line (its batch quantity, adjusted when asked) or to the header.
-export const HEADER_VALUES = ['batchSize', 'coreWeight', 'coatedWeight', 'coreBatch', 'coatedBatch'] as const;
+export const HEADER_VALUES = ['batchSize', 'fillWeight', 'coatedWeight', 'fillBatch', 'coatedBatch'] as const;
 export const settingValueSchema = z.union([
   text(),
   limitSchema,
@@ -51,7 +51,7 @@ export const stepSchema = z.object({
   everyMinutesLater: z.object({ afterMinutes: z.number().int().positive().max(10_000), everyMinutes: z.number().int().positive().max(10_000) }).strict().optional(),
   // F4 by a rule: the step is done only when a header value is within the limit (F0040: the bag premix only for a
   // batch of at most 50 kg); otherwise it is not applicable, with no operator choice.
-  onlyIf: z.object({ header: z.enum(['batchSize', 'coreBatch']), limit: limitSchema }).strict().optional(),
+  onlyIf: z.object({ header: z.enum(['batchSize', 'fillBatch']), limit: limitSchema }).strict().optional(),
   // A spray of a liquid made in excess: the amount of liquid to apply per amount charged (F0339: 971 g per 150 g).
   applyPerCharge: z.object({ liquid: text(40), charge: text(40) }).strict().optional(),
   // Order-critical: this step must come after the step with this key in the same stage (F0318: the drug after the PVP).
@@ -87,7 +87,7 @@ export const lineSchema = z.object({
   materialItemId: z.string().min(1).max(100),
   code: text(),
   name: text(),
-  mgPerTablet: decimal,
+  mgPerCapsule: decimal,
   // A solvent is removed in processing (granulation water) and is not part of the tablet weight.
   role: z.enum(['api', 'excipient', 'solvent']),
   place: z.enum(['intragranular', 'extragranular', 'binder', 'coating']),
@@ -123,12 +123,12 @@ export const headerSchema = z.object({
   productCode: text(),
   productName: text(),
   batchSize: z.string().regex(/^[1-9]\d{0,9}$/, 'a whole number of tablets'),
-  coreWeightMg: decimal,
+  fillWeightMg: decimal,
   coatedWeightMg: decimal.optional(),
   // The die bore area from the tooling record, to check that the target weight fits the tooling (F0135).
   dieAreaMm2: decimal.optional(),
   // Other strengths compressed from the same blend at their own core weight (F0225, F0366).
-  otherStrengths: z.array(z.object({ name: text().min(1), labelClaim: text(40), coreWeightMg: decimal }).strict()).max(10).optional(),
+  otherStrengths: z.array(z.object({ name: text().min(1), labelClaim: text(40), fillWeightMg: decimal }).strict()).max(10).optional(),
   // TC-11: the rooms of master data (codes) where this product's materials are weighed; a balance is offered there or
   // in a room the stage allows (shared/engine/picks.ts). A version made before this setting has none.
   dispensingRooms: z.array(text()).max(20).optional(),
@@ -140,7 +140,7 @@ export const answerSchema = z.object({ about: text(1000), choice: text().min(1),
 
 // TrueBatch Capsules Packing (TC-P1): a packing master is per product, pack type and size, and destination. Its header
 // names the finished pack product, the standard packing batch in tablets (batchSize) and the theoretical weight of one
-// bulk tablet (coreWeightMg, for counts by weight); `pack` holds the rest. Its formula is empty: the packing materials
+// bulk tablet (fillWeightMg, for counts by weight); `pack` holds the rest. Its formula is empty: the packing materials
 // are `pack.materials`, and a step setting { formula: key } names one of them.
 export const PACK_TYPES = ['blister', 'strip', 'bottle'] as const;
 export const PACK_MATERIAL_KINDS = ['foil', 'forming film', 'carton', 'leaflet', 'label', 'shipper', 'bottle', 'closure', 'desiccant', 'other'] as const;

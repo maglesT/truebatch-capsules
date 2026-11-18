@@ -78,7 +78,7 @@ describe('master designer', () => {
   });
 
   it('TC-10 the process skeletons are valid drafts and start every stage with line clearance; what they leave open is listed by the master check', () => {
-    const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', coreWeightMg: '250.0', coatedWeightMg: '257.5', dispensingRooms: ['RM-101'] };
+    const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', coatedWeightMg: '257.5', dispensingRooms: ['RM-101'] };
     for (const s of SKELETON_LIST) {
       const doc = masterSchema.parse({ header, formula: [], stages: skeletonStages(s.id, header) });
       expect(doc.stages.every((st) => st.steps.every((t) => findBlock(t.block)))).toBe(true);
@@ -103,7 +103,7 @@ describe('master designer', () => {
     expect(at('coating', 'coat')).toMatchObject({ block: { id: 'spray-coat' }, everyMinutes: 30, flow: { kind: 'repeat-until' } });
     // Blending adds the extragranular materials and the lubricant: its yield is on the core batch weight (17 Nov 2026
     // run, F11); the coating yield on the good cores; the coating gain on the actual core mean; the end point checked.
-    expect(at('blending', 'yield').settings.theoretical).toEqual({ header: 'coreBatch' });
+    expect(at('blending', 'yield').settings.theoretical).toEqual({ header: 'fillBatch' });
     expect(at('coating', 'yield')).toMatchObject({ block: { id: 'tablet-reconciliation' }, settings: { theoretical: { ref: 'compression/yield/goodTablets' }, meanWeight: { ref: 'coating/coat/meanWeight' } } });
     expect(at('coating', 'coat').settings.coreWeight).toEqual({ ref: 'compression/compress/meanWeight' });
     expect(at('granulation', 'granulate').checker).toBe(true);
@@ -122,13 +122,13 @@ describe('master designer', () => {
     expect(d.header.batchSize).toBe('50000');
     expect(d.stages[1]!.steps[6]!.settings.theoretical).toBe('11.500 kg');
     expect(d.stages[1]!.steps[6]!.settings.yieldLimit).toEqual({ low: '97.0', high: '100.5', unit: '%' });
-    expect(d.formula[0]!.mgPerTablet).toBe('100.0');
+    expect(d.formula[0]!.mgPerCapsule).toBe('100.0');
   });
 
   it('the changes view shows what changed, was added or removed since the previous version', () => {
     const prev = tablet();
     const next = tablet();
-    next.formula[4]!.mgPerTablet = '18.0';
+    next.formula[4]!.mgPerCapsule = '18.0';
     next.stages[2]!.steps.pop();
     next.stages[1]!.produces!.holdHours = 48;
     const diff = diffMasters(prev, next);
@@ -191,7 +191,7 @@ describe('master designer', () => {
     expect(line).toMatch(/^Formula › Examplol hydrochloride: Label claim .* Answered: as Examplol hydrochloride\. Reason: The label for this market states the salt\.$/);
     expect(diffMasters(prev, next).flatMap((s) => s.lines.filter((l) => l.change !== 'same').map((l) => `${s.title} ${l.change}: ${l.text}`))).toEqual([`Calculation checks changed: ${line}`]);
     // A changed item asks again: the answer was for the warning as it read then.
-    const changed = { ...next, formula: next.formula.map((l, i) => (i === 0 ? { ...l, mgPerTablet: '90.0' } : l)) };
+    const changed = { ...next, formula: next.formula.map((l, i) => (i === 0 ? { ...l, mgPerCapsule: '90.0' } : l)) };
     expect(masterChecks(changed).find((p) => p.question?.key === 'label-basis/api')?.question?.answer).toBeUndefined();
   });
 });

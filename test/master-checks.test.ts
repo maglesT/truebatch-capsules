@@ -80,8 +80,8 @@ describe('master checks', () => {
   });
 
   it('the formula must add up to the theoretical core weight (coating and solvents left out)', () => {
-    expect(after((d) => { d.formula[4]!.mgPerTablet = '17.0'; })).toEqual(['error - formula: The core materials add up to 249.5 mg per tablet, not the theoretical core weight 250.0 mg']);
-    expect(after((d) => { d.formula[3]!.mgPerTablet = '80.0'; d.formula[6]!.mgPerTablet = '9.0'; d.header.coatedWeightMg = '259.0'; })).toEqual([]);
+    expect(after((d) => { d.formula[4]!.mgPerCapsule = '17.0'; })).toEqual(['error - formula: The core materials add up to 249.5 mg per tablet, not the theoretical core weight 250.0 mg']);
+    expect(after((d) => { d.formula[3]!.mgPerCapsule = '80.0'; d.formula[6]!.mgPerCapsule = '9.0'; d.header.coatedWeightMg = '259.0'; })).toEqual([]);
   });
 
   it('TC-13 adjustment settings the templates library refuses are errors (same basis, overage, salt factor)', () => {

@@ -148,11 +148,11 @@ export function packFacts(p: Pack): Record<string, string> {
 }
 
 /** A header value: as written, or the batch weight (T8: weight per tablet × batch size). */
-export function headerValue(doc: MasterDoc, h: 'batchSize' | 'coreWeight' | 'coatedWeight' | 'coreBatch' | 'coatedBatch'): string | Stored {
-  const { coreWeightMg: core, coatedWeightMg: coated } = doc.header;
+export function headerValue(doc: MasterDoc, h: 'batchSize' | 'fillWeight' | 'coatedWeight' | 'fillBatch' | 'coatedBatch'): string | Stored {
+  const { fillWeightMg: core, coatedWeightMg: coated } = doc.header;
   if (h === 'batchSize') return tablets(doc);
-  if (h === 'coreWeight') return `${core} mg`;
-  if (h === 'coreBatch') return store(perBatch(core, doc));
+  if (h === 'fillWeight') return `${core} mg`;
+  if (h === 'fillBatch') return store(perBatch(core, doc));
   if (coated === undefined) return { ok: false, message: 'The master has no coated tablet weight' };
   return h === 'coatedWeight' ? `${coated} mg` : store(perBatch(coated, doc));
 }
@@ -176,7 +176,7 @@ function recordedAdjusted(doc: MasterDoc, events: readonly StepEvent[], here: St
  * or T10 for a filler that compensates other lines. The worked lines are joined.
  */
 export function lineQuantity(doc: MasterDoc, events: readonly StepEvent[], here: StepKey, line: FormulaLine, adjusted: boolean, values: Record<string, Value>, uses: number[] = []): Stored {
-  let q: Outcome<object> = perBatch(line.mgPerTablet, doc);
+  let q: Outcome<object> = perBatch(line.mgPerCapsule, doc);
   const shown: string[] = [];
   const next = (o: Outcome<object>) => { if (q.ok) shown.push(q.shown); q = o; };
   const a = adjusted ? line.adjust : undefined;
@@ -200,7 +200,7 @@ export function lineQuantity(doc: MasterDoc, events: readonly StepEvent[], here:
   return r.ok && shown.length ? { ...r, shown: [...shown, r.shown].join('; then ') } : r;
 }
 const perBatchQ = (doc: MasterDoc, l: FormulaLine | undefined) => {
-  const r = l ? store(perBatch(l.mgPerTablet, doc)) : undefined;
+  const r = l ? store(perBatch(l.mgPerCapsule, doc)) : undefined;
   return r ? asQ(r) : undefined;
 };
 
