@@ -571,10 +571,10 @@ describe('the views TrueBatch publishes', () => {
     const [u] = await t.owner<{ id: number }[]>`select id::int from users order by id limit 1`;
     // Only what the view reads of a master: a stage yield, then the capsule reconciliation (the batch's).
     const doc = { header: { productCode: 'OUT', productName: 'Output' }, stages: [{ key: 'c', steps: [{ key: 'y', block: { id: 'stage-yield', version: 1 } },
-      { key: 'r', block: { id: 'tablet-reconciliation', version: 1 } }] }] };
+      { key: 'r', block: { id: 'capsule-reconciliation', version: 1 } }] }] };
     const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(doc as never)}, ${u!.id}) returning id::int`;
     const [b] = await t.owner<{ id: number }[]>`insert into batches (batch_no, master_version_id, issued_by) values ('OUT-1', ${v!.id}, ${u!.id}) returning id::int`;
-    const res = (good: string, y: string) => ({ results: { goodTablets: { ok: true, value: good, unit: 'capsules', shown: '' }, yield: { ok: true, value: y, unit: '%', shown: '' },
+    const res = (good: string, y: string) => ({ results: { goodCapsules: { ok: true, value: good, unit: 'capsules', shown: '' }, yield: { ok: true, value: y, unit: '%', shown: '' },
       accountability: { ok: false, message: 'not yet' } } });
     const add = (step: number, kind: string, payload: object) => t.owner`insert into step_events (batch_id, stage, sub, step, round, kind, payload, person_id)
       values (${b!.id}, 0, 1, ${step}, 1, ${kind}, ${t.owner.json(payload as never)}, ${u!.id})`;
