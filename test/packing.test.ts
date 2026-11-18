@@ -19,9 +19,9 @@ const where = (d: MasterDoc, block: string) => {
 };
 const without = (d: MasterDoc, ...blocks: string[]) => ({ ...d, stages: d.stages.map((s) => ({ ...s, steps: s.steps.filter((t) => !blocks.includes(t.block.id)) })) });
 const LINE = { itemId: 'ln-1', code: 'BL-01', name: 'Blister line 1', version: 1, type: 'blister line', room: 'PK-01' };
-// The batch facts recorded at issue: bulk TB260001 made on 3 Nov 2026, 100 000 tablets.
+// The batch facts recorded at issue: bulk TB260001 made on 3 Nov 2026, 100 000 capsules.
 const issued = (d: MasterDoc, x: Record<string, unknown> = {}): StepEvent => {
-  const values = { line: LINE, bulk: 'TB260001', mfgDate: '2026-11-03', tablets: { value: '100000', unit: 'tablets' }, ...x } as never;
+  const values = { line: LINE, bulk: 'TB260001', mfgDate: '2026-11-03', capsules: { value: '100000', unit: 'capsules' }, ...x } as never;
   return ev('value', '0.1.0.1', { min: 1, payload: { values, results: evaluate(d, [], { stage: 0, sub: 1, step: 0, round: 1 }, values) } });
 };
 const results = (d: MasterDoc, events: StepEvent[], key: string, values: Record<string, unknown>) => {
@@ -37,9 +37,9 @@ describe('the packing master (TC-P1 to TC-P9)', () => {
       .toContain('No packing material carries the batch coding: mark the materials the batch number, dates and MRP are printed on');
     const tabletStep = packing();
     tabletStep.stages[1]!.steps.push({ ...tabletStep.stages[1]!.steps[0]!, key: 'weigh', block: { id: 'weigh', version: 1 } });
-    expect(errors(tabletStep, 'TC-P1')).toContain('Weigh a material is a tablet manufacturing step: a packing master uses the packing steps');
-    // A tablet master never uses a packing step; the pack's limits are the author's (the check lists them).
-    expect(errors(small([{ steps: [{ block: { id: 'coding-check', version: 1 }, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 10 } }] }]))).toContain('Coding check is a packing step: a tablet master cannot use it');
+    expect(errors(tabletStep, 'TC-P1')).toContain('Weigh a material is a capsule manufacturing step: a packing master uses the packing steps');
+    // A capsule master never uses a packing step; the pack's limits are the author's (the check lists them).
+    expect(errors(small([{ steps: [{ block: { id: 'coding-check', version: 1 }, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 10 } }] }]))).toContain('Coding check is a packing step: a capsule master cannot use it');
     const unset = packing();
     delete where(unset, 'forming-check').st.settings.sealLimit;
     expect(errors(unset)).toContain('Sealing temperature limits is not set');
@@ -47,9 +47,9 @@ describe('the packing master (TC-P1 to TC-P9)', () => {
     expect(masterSchema.safeParse({ ...packing(), pack: { ...packing().pack, type: 'sachet' } }).success).toBe(false);
   });
 
-  it('TC-P2 the packing record starts with the bulk tablets issued to the line, linked to the bulk batch', () => {
-    expect(errors(without(packing(), 'bulk-issue'), 'TC-P2')).toEqual(['The packing record starts with the bulk tablets issued to the line: it links the record to the released bulk batch']);
-    expect(findBlock({ id: 'bulk-issue', version: 1 })!.atIssue).toEqual(['line', 'bulk', 'mfgDate', 'tablets']);
+  it('TC-P2 the packing record starts with the bulk capsules issued to the line, linked to the bulk batch', () => {
+    expect(errors(without(packing(), 'bulk-issue'), 'TC-P2')).toEqual(['The packing record starts with the bulk capsules issued to the line: it links the record to the released bulk batch']);
+    expect(findBlock({ id: 'bulk-issue', version: 1 })!.atIssue).toEqual(['line', 'bulk', 'mfgDate', 'capsules']);
   });
 
   it('TC-P3 line clearance before and after packing, checked by a second person; blisters and strips formed, sealed and leak tested', () => {
@@ -120,7 +120,7 @@ describe('the packing blocks', () => {
     expect(t27Expiry({ manufactured: '2026-13-01', months: '24' })).toMatchObject({ ok: false });
     expect(t27Expiry({ manufactured: '2026-11-03', months: '0' })).toMatchObject({ ok: false });
     const d = packing();
-    const r = results(d, [], '0.1.0.1', { mfgDate: '2026-11-03', tablets: { value: '100000', unit: 'tablets' } });
+    const r = results(d, [], '0.1.0.1', { mfgDate: '2026-11-03', capsules: { value: '100000', unit: 'capsules' } });
     expect(r.expiry).toMatchObject({ ok: true, expiry: '2028-10', shown: 'Manufactured 11/2026, shelf life 24 months (to the end of the month before): expiry 10/2028' });
     expect(r.packs).toMatchObject({ ok: true, value: '10000', unit: 'packs' });
     // The bulk step's figure is the expiry date, not the shelf life it is worked out from.
@@ -219,12 +219,12 @@ describe('the packing blocks', () => {
     expect(batchView(d, all, [], at(10)).yieldOut).toEqual([expect.stringMatching(/^The yield of Reconciliation and line clearance › .+ is out of limits: a deviation note with its reference is needed$/)]);
   });
 
-  it('TC-P6 finished goods: the tablets in packs and samples, returned and rejected by weight, the yield in packs and the accountability of the tablets issued', () => {
+  it('TC-P6 finished goods: the capsules in packs and samples, returned and rejected by weight, the yield in packs and the accountability of the capsules issued', () => {
     const d = packing();
     const f = where(d, 'finished-goods');
     const r = results(d, [issued(d)], f.key, { packs: { value: '9800', unit: 'units' }, cartons: { value: '980', unit: 'units' }, samples: { value: '40', unit: 'units' },
       returnedWeight: { value: '0.375', unit: 'kg' }, rejectWeight: { value: '0.125', unit: 'kg' } });
-    expect(r.packed).toMatchObject({ ok: true, value: '98000', unit: 'tablets' });
+    expect(r.packed).toMatchObject({ ok: true, value: '98000', unit: 'capsules' });
     expect(r.returned).toMatchObject({ value: '1500' });
     expect(r.rejects).toMatchObject({ value: '500' });
     expect(r.yield).toMatchObject({ value: '98', check: { pass: true } });

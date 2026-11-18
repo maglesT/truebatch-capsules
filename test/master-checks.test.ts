@@ -4,13 +4,13 @@ import { blockProblems, type Block } from '../shared/blocks/format.js';
 import { evaluate } from '../shared/engine/index.js';
 import { blocking, masterChecks } from '../shared/master/checks.js';
 import { masterSchema, type MasterDoc } from '../shared/master/schema.js';
-import { placed, tablet, unplaced } from './engine-fixture.js';
+import { placed, capsule, unplaced } from './engine-fixture.js';
 // The problems, without the rooms a stage must name (TC-11): the fixtures name none.
 const checks = (d: Parameters<typeof masterChecks>[0]) => unplaced(masterChecks(d));
 
 /** The fixture with one change; the problems that change makes. */
 function after(change: (d: MasterDoc) => void) {
-  const d = tablet();
+  const d = capsule();
   change(d);
   return checks(d).map((p) => `${p.level} ${p.rule ?? '-'} ${p.path}: ${p.message}`);
 }
@@ -35,22 +35,22 @@ describe('blocks are data', () => {
 });
 
 describe('master checks', () => {
-  it('the fixture tablet master passes every check', () => {
-    expect(checks(tablet())).toEqual([]);
-    expect(masterChecks(placed(tablet()))).toEqual([]);
+  it('the fixture capsule master passes every check', () => {
+    expect(checks(capsule())).toEqual([]);
+    expect(masterChecks(placed(capsule()))).toEqual([]);
   });
 
   it('TC-11 a stage that works machines or names a room, with no rooms chosen, is an error; balances alone and the line a packing batch is issued to are not', () => {
-    expect(masterChecks(tablet()).filter((p) => p.rule === 'TC-11').map((p) => `${p.path}: ${p.message}`)).toEqual(['Binder solution', 'Granulation', 'Compression', 'Coating']
+    expect(masterChecks(capsule()).filter((p) => p.rule === 'TC-11').map((p) => `${p.path}: ${p.message}`)).toEqual(['Binder solution', 'Granulation', 'Compression', 'Coating']
       .map((name, i) => `stages[${i}].roomTypes: Stage ${name}: choose the rooms this stage may run in (an area or a room of master data, in the stage settings)`));
-    const d = placed(tablet());
+    const d = placed(capsule());
     d.stages[0]!.roomTypes = [];
     d.stages[0]!.steps = d.stages[0]!.steps.filter((t) => t.block.id === 'weigh');
     expect(masterChecks(d).filter((p) => p.rule === 'TC-11')).toEqual([]);
   });
 
   it('a draft may be incomplete, but its shape is checked', () => {
-    expect(masterSchema.safeParse({ ...tablet(), stages: [{ key: 'X Y' }] }).success).toBe(false);
+    expect(masterSchema.safeParse({ ...capsule(), stages: [{ key: 'X Y' }] }).success).toBe(false);
   });
 
   it.each<[string, (d: MasterDoc) => void, string]>([
@@ -132,7 +132,7 @@ describe('master checks', () => {
   });
 
   it('a limit of the wrong unit kind is refused at batch time too: C1 and T7 refuse the reading, nothing is compared', () => {
-    const d = tablet();
+    const d = capsule();
     step(d, 'compression', 'compress').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'min' };
     const r = evaluate(d, [], { stage: 2, sub: 1, step: 0, round: 1 }, { weights: Array(20).fill({ value: '250.0', unit: 'mg' }) });
     expect(r.meanWeight).toEqual({ ok: false, message: 'mg (mass) cannot be converted to min (time)' });
@@ -200,20 +200,20 @@ describe('calculation checks', () => {
 
   it('calculation check ⛔ negative filler: a compensating filler that cannot take the overage even at an assay of 100 %', () => {
     const mccCompensates = (overage: string) => (d: MasterDoc) => { d.formula[0]!.adjust = { ...d.formula[0]!.adjust, overage: { percent: overage } }; d.formula[4]!.adjust = { compensates: ['api'] }; };
-    // 100 000 tablets: 10.000 kg API × 1.20 = 12.000 kg; 2.000 kg more than the 1.750 kg of MCC
+    // 100 000 capsules: 10.000 kg API × 1.20 = 12.000 kg; 2.000 kg more than the 1.750 kg of MCC
     expect(only('error', 'formula[4].adjust.compensates')(mccCompensates('20.0')))
       .toEqual([expect.stringMatching(/^error TC-13 formula\[4\]\.adjust\.compensates: At the nominal certificate values: Not enough Microcrystalline cellulose to compensate.*-0\.250 kg of Microcrystalline cellulose\. The batch weight cannot be kept$/)]);
     expect(only('error', 'formula[4].adjust.compensates')(mccCompensates('10.0'))).toEqual([]);
   });
 
-  it('calculation check ⛔ weight variation on coated tablets other than film-coated: the block offers no other coating, and T14 refuses it', () => {
+  it('calculation check ⛔ weight variation on coated capsules other than film-coated: the block offers no other coating, and T14 refuses it', () => {
     const uniformity = (coating: string): Change => (d) => {
       d.stages[2]!.steps.splice(1, 0, { key: 'uniformity', block: { id: 'uniformity-by-weight', version: 1 }, checker: true, waitForCheck: false, critical: false,
         settings: { coating, labelClaim: '100 mg' }, flow: { kind: 'none' } });
     };
     expect(errors(uniformity('sugar-coated'))).toEqual(['error - stages[2].steps[1].settings.coating: Coating: choose one of uncoated, film-coated']);
     expect(errors(uniformity('film-coated'))).toEqual([]);
-    const d = tablet();
+    const d = capsule();
     uniformity('sugar-coated')(d);
     const weights = Array.from({ length: 10 }, () => ({ value: '250.0', unit: 'mg' }));
     expect(evaluate(d, [], { stage: 2, sub: 1, step: 1, round: 1 }, { weights, assay: { value: '99.0', unit: '%' } }).acceptance)
@@ -242,13 +242,13 @@ describe('calculation checks', () => {
     ['(d) potency adjusted at dispensing and again from a blend assay', double, (d) => { delete d.formula[0]!.adjust; double(d); }, 'double-adjustment/mcc', 'formula[4].adjust', 'intended'],
     ['(e) salt factor differing from the molecular weights by more than 0.5 %', factor('1.10'), factor('1.060'), 'salt-factor/api', 'formula[0].adjust.salt', 'confirmed'],
   ])('calculation check ⚠️ %s: fires, passes, and once answered no longer blocks', (_what, fires, passes, key, path, choice) => {
-    const d = tablet();
+    const d = capsule();
     fires(d);
     const q = checks(d).find((p) => p.question?.key === key)!;
     expect(q).toMatchObject({ level: 'warning', path, question: { options: expect.arrayContaining([choice]) } });
     expect(blocking(q)).toBe(true);
     // passes: the warning is not there
-    const ok = tablet();
+    const ok = capsule();
     passes(ok);
     expect(checks(ok).some((p) => p.question?.key === key)).toBe(false);
     // answered (with a reason where one is needed): shown as answered, not blocking
@@ -259,7 +259,7 @@ describe('calculation checks', () => {
   });
 
   it('calculation check ⚠️ an answer counts only while it fits: a choice from the list, a reason where needed, the warning as answered', () => {
-    const d = tablet();
+    const d = capsule();
     double(d);
     const q = checks(d).find((p) => p.question?.key === 'double-adjustment/mcc')!;
     const answer = (a: object) => { d.answers = { 'double-adjustment/mcc': { about: q.message, choice: 'intended', reason: 'Validated', ...a } }; return checks(d).find((p) => p.question?.key === 'double-adjustment/mcc')!; };
@@ -271,10 +271,10 @@ describe('calculation checks', () => {
 });
 
 it('calculation check ⚠️ the messages say what to answer, in plain words', () => {
-  const d = tablet();
+  const d = capsule();
   d.formula[0]!.adjust = { salt: { from: { name: 'base', mw: '383.4' }, to: { name: 'sodium', mw: '405.4' }, factor: '1.10' } };
   expect(checks(d).map((p) => `${p.path}: ${p.message}`)).toEqual([
-    "formula[0]: Label claim for this master's market: is the strength of Examplol stated as base or as sodium? The formula gives 100.0 mg of base per tablet.",
+    "formula[0]: Label claim for this master's market: is the strength of Examplol stated as base or as sodium? The formula gives 100.0 mg of base per capsule.",
     'formula[0].adjust.salt: The salt factor 1.10 written for Examplol differs by 4.0 % from the molecular weights of base and sodium (factor 1.0574), which the batch quantity uses. Confirm with a reason, or correct the factor or the molecular weights.',
   ]);
 });

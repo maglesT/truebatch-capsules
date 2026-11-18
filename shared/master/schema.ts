@@ -96,9 +96,9 @@ export const lineSchema = z.object({
   // lines of a soft gel (gelatin, plasticiser, water, colour); they add up to the header's shellWeightMg.
   place: z.enum(['intragranular', 'extragranular', 'binder', 'coating', 'shell']),
   layer: z.number().int().min(1).max(10).optional(),
-  // The API's label claim per tablet ("20 mg", "10 mEq"), on the basis the label-basis answer gives; checked, never used.
+  // The API's label claim per capsule ("20 mg", "10 mEq"), on the basis the label-basis answer gives; checked, never used.
   labelClaim: text(40).optional(),
-  // A batch quantity as written in the source ("120.000 kg"); only checked against mg per tablet × batch size (T8).
+  // A batch quantity as written in the source ("120.000 kg"); only checked against mg per capsule × batch size (T8).
   batchQuantity: text(40).optional(),
   // Settings of the adjustment templates, applied in this order: T11 salt factor, T9 potency or T18 content, T16
   // overage; or, for a filler, T10 compensation of the named lines.
@@ -143,7 +143,7 @@ export const headerSchema = z.object({
   coatedWeightMg: decimal.optional(),
   // The die bore area from the tooling record, to check that the target weight fits the tooling (F0135).
   dieAreaMm2: decimal.optional(),
-  // Other strengths compressed from the same blend at their own core weight (F0225, F0366).
+  // Other strengths compressed from the same blend at their own fill weight (F0225, F0366).
   otherStrengths: z.array(z.object({ name: text().min(1), labelClaim: text(40), fillWeightMg: decimal, shellSize: text(20).optional(), shellWeightMg: decimal.optional() }).strict()).max(10).optional(),
   // TC-11: the rooms of master data (codes) where this product's materials are weighed; a balance is offered there or
   // in a room the stage allows (shared/engine/picks.ts). A version made before this setting has none.
@@ -155,8 +155,8 @@ export const headerSchema = z.object({
 export const answerSchema = z.object({ about: text(1000), choice: text().min(1), reason: text(1000) }).strict();
 
 // TrueBatch Capsules Packing (TC-P1): a packing master is per product, pack type and size, and destination. Its header
-// names the finished pack product, the standard packing batch in tablets (batchSize) and the theoretical weight of one
-// bulk tablet (fillWeightMg, for counts by weight); `pack` holds the rest. Its formula is empty: the packing materials
+// names the finished pack product, the standard packing batch in capsules (batchSize) and the theoretical weight of one
+// bulk capsule (fillWeightMg, for counts by weight); `pack` holds the rest. Its formula is empty: the packing materials
 // are `pack.materials`, and a step setting { formula: key } names one of them.
 export const PACK_TYPES = ['blister', 'strip', 'bottle'] as const;
 export const PACK_MATERIAL_KINDS = ['foil', 'forming film', 'carton', 'leaflet', 'label', 'shipper', 'bottle', 'closure', 'desiccant', 'other'] as const;
@@ -179,7 +179,7 @@ export const packSchema = z.object({
   bulkCode: text(),
   bulkName: text(),
   type: z.enum(PACK_TYPES),
-  // Tablets in one blister, strip or bottle, and packs in one carton.
+  // Capsules in one blister, strip or bottle, and packs in one carton.
   unitsPerPack: z.number().int().min(1).max(10_000),
   packsPerCarton: z.number().int().min(1).max(1000),
   // The approved shelf life (TC-P8): the expiry is worked out from it, never typed.

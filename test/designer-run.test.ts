@@ -8,7 +8,7 @@ import { verdictless } from '../web/src/designer/example.js';
 import { dispensingRoomChoices, grouped, ownProducts, qtyText, stageRoomChoices, unitsOf } from '../web/src/designer/model.js';
 import { sentence, sentenceText } from '../web/src/designer/sentences.js';
 import { SKELETON_LIST, skeletonStages } from '../web/src/designer/skeletons.js';
-import { tablet } from './engine-fixture.js';
+import { capsule } from './engine-fixture.js';
 
 // The designer findings of the full demo run of 17 Nov 2026 (F03-F17, F35, F36): what the master check reports, the
 // plain view's words, and the pick lists offered from master data.
@@ -45,7 +45,7 @@ describe('designer findings of the 17 Nov 2026 run', () => {
   });
 
   it('a stage\'s yield on an earlier stage\'s output is refused when the stage adds formula materials (F11)', () => {
-    const d = tablet();
+    const d = capsule();
     // Compression of the fixture weighs nothing; make its yield on the granules and let it charge the lubricant.
     const ci = d.stages.findIndex((s) => s.key === 'compression');
     const yi = d.stages[ci]!.steps.findIndex((t) => t.key === 'yield');
@@ -53,8 +53,8 @@ describe('designer findings of the 17 Nov 2026 run', () => {
     expect(masterChecks(d).filter((p) => p.path === `stages[${ci}].steps[${yi}].settings.theoretical`)).toEqual([]);
     d.stages[ci]!.steps.unshift({ key: 'weigh-mgst', block: { id: 'weigh', version: 1 }, checker: true, waitForCheck: false, critical: false, flow: { kind: 'none' }, settings: { target: { formula: 'mgst' }, tolerance: '0.5' } });
     expect(masterChecks(d).filter((p) => p.path === `stages[${ci}].steps[${yi + 1}].settings.theoretical`).map((p) => [p.level, p.message])).toEqual([['error',
-      'The yield of Compression is worked out on the output of Granulation only, but Compression adds Magnesium stearate: the yield would read above 100 %. Take the theoretical core batch weight (or a quantity that includes what this stage adds) as the theoretical quantity']]);
-    // Every skeleton passes this check: blending's yield is on the core batch weight.
+      'The yield of Compression is worked out on the output of Granulation only, but Compression adds Magnesium stearate: the yield would read above 100 %. Take the theoretical fill batch weight (or a quantity that includes what this stage adds) as the theoretical quantity']]);
+    // Every skeleton passes this check: blending's yield is on the fill batch weight.
     for (const s of SKELETON_LIST) {
       const doc = masterSchema.parse({ header, formula: [], stages: skeletonStages(s.id, header) });
       expect(masterChecks(doc).filter((p) => p.path.endsWith('.settings.theoretical') && /above 100 %/.test(p.message))).toEqual([]);
@@ -76,10 +76,10 @@ describe('designer findings of the 17 Nov 2026 run', () => {
     // The binder solution with only its binder: no "(not set), (not set)" for the optional second and third materials.
     const b = block('binder-solution');
     const settings = { binder: { formula: 'pvp' }, targetSolids: '10 %w/w', tolerance: '2.0', mixTimeLimit: { low: '15', high: '30', unit: 'min' } };
-    expect(sentenceText(tablet(), b, settings, sentence(b, b.calcs[0]!))).toBe('The solvent to add is worked out from the batch quantity of Povidone K30 and 10 %w/w.');
+    expect(sentenceText(capsule(), b, settings, sentence(b, b.calcs[0]!))).toBe('The solvent to add is worked out from the batch quantity of Povidone K30 and 10 %w/w.');
     // The disintegration medium's temperature: no sentence while its limits are empty, and a warning to set them.
     const di = block('disintegration');
-    expect(sentenceText(tablet(), di, { maxTime: '15' }, sentence(di, di.calcs[0]!))).toBe('');
+    expect(sentenceText(capsule(), di, { maxTime: '15' }, sentence(di, di.calcs[0]!))).toBe('');
     const doc = uncoated();
     expect(masterChecks(doc).filter((p) => /recorded but not checked/.test(p.message)).map((p) => p.message)).toEqual(['Medium temperature is recorded but not checked: set the medium temperature limits']);
     // A stage without a responsible role is reported.
@@ -88,29 +88,29 @@ describe('designer findings of the 17 Nov 2026 run', () => {
 
   it('the plain view gives numbers with their units and plain sentences (F06, F13)', () => {
     const di = block('disintegration');
-    expect(sentenceText(tablet(), di, { maxTime: '15' }, sentence(di, di.calcs[1]!)))
-      .toBe('Each of the times of 6 tablets must be at most 15 min; when one or two are not, the times of 12 more tablets are recorded too, and at least 16 of the 18 must be.');
+    expect(sentenceText(capsule(), di, { maxTime: '15' }, sentence(di, di.calcs[1]!)))
+      .toBe('Each of the times of 6 capsules must be at most 15 min; when one or two are not, the times of 12 more capsules are recorded too, and at least 16 of the 18 must be.');
     const pd = block('punch-die-check');
-    expect(sentenceText(tablet(), pd, {}, sentence(pd, pd.calcs[1]!))).toBe('The punches or dies damaged must be 0: none allowed.');
+    expect(sentenceText(capsule(), pd, {}, sentence(pd, pd.calcs[1]!))).toBe('The punches or dies damaged must be 0: none allowed.');
     const rec = block('tablet-reconciliation');
-    const good = rec.calcs.find((c) => /good tablets/i.test(c.label));
-    if (good) expect(sentenceText(tablet(), rec, {}, sentence(rec, good))).toMatch(/^The good tablets are /);
+    const good = rec.calcs.find((c) => /good capsules/i.test(c.label));
+    if (good) expect(sentenceText(capsule(), rec, {}, sentence(rec, good))).toMatch(/^The good capsules are /);
     const lines = describeMaster(uncoated()).flatMap((s) => s.lines.map((l) => l.text));
-    expect(lines).toContain('Batch size 50,000 tablets.');
-    expect(lines.find((l) => l.includes('Produces bulk tablets'))).toMatch(/to be used within 720 hours \(30 days\)\./);
+    expect(lines).toContain('Batch size 50,000 capsules.');
+    expect(lines.find((l) => l.includes('Produces bulk capsules'))).toMatch(/to be used within 720 hours \(30 days\)\./);
     // A charged material by its name and code, as the floor names it.
-    const d = tablet();
+    const d = capsule();
     const text = describeMaster(d).flatMap((s) => s.lines.map((l) => l.text)).find((l) => l.includes('Charge a material'))!;
     expect(text).toContain('Material: Examplol (MAT-001).');
     expect(text).not.toContain('formula line');
-    expect(grouped('600.0 mg × 50000 tablets = 30.000 kg')).toBe('600.0 mg × 50,000 tablets = 30.000 kg');
-    expect(grouped('CC-2026-0016, 49225.7 tablets, 100000 tablets')).toBe('CC-2026-0016, 49225.7 tablets, 1,00,000 tablets');
+    expect(grouped('600.0 mg × 50000 capsules = 30.000 kg')).toBe('600.0 mg × 50,000 capsules = 30.000 kg');
+    expect(grouped('CC-2026-0016, 49225.7 capsules, 100000 capsules')).toBe('CC-2026-0016, 49225.7 capsules, 1,00,000 capsules');
   });
 
   it('no internal codes of rules, templates or failure cases in what the master check says (F07)', () => {
     expect(plainWords('A line is adjusted for potency (T9) or for content (T18), not both')).toBe('A line is adjusted for potency or for content, not both');
     expect(plainWords('stop at that net weight (F0339: spraying all of it gives about 4.5 % more drug)')).toBe('stop at that net weight (spraying all of it gives about 4.5 % more drug)');
-    const d = tablet();
+    const d = capsule();
     d.formula[0]!.adjust = { potency: { basis: 'as is' }, content: { formulaQuantityIs: 'dry' } };
     d.formula[0]!.name = 'Examplol wet cake';
     for (const p of masterChecks(d)) expect(p.message).not.toMatch(/\bT\d+\b|\bTC-\w+|\bF0\d{3}\b/);
@@ -126,10 +126,10 @@ describe('designer findings of the 17 Nov 2026 run', () => {
 
   it('pick lists offer this product\'s products and the relevant rooms first, by name (F04, F05, F09)', () => {
     const p = (code: string, dosageForm: string | null, kind?: 'bulk' | 'pack' | null) => ({ code, dosageForm, kind });
-    expect(ownProducts([p('FG-PCM500', 'Tablet'), p('FG-ATV20', 'Film-coated tablet'), p('FG-INJ', 'Solution for injection'), p('EXZ', null)], 'bulk').map((x) => x.code))
+    expect(ownProducts([p('FG-PCM500', 'Capsule'), p('FG-ATV20', 'Film-coated capsule'), p('FG-INJ', 'Solution for injection'), p('EXZ', null)], 'bulk').map((x) => x.code))
       .toEqual(['FG-PCM500', 'FG-ATV20']);
-    // Master data's kind: a tablet master offers the bulk products, a packing master the packs; no kind yet: both, as before.
-    const all = [p('FG-PCM500', 'Tablet', 'bulk'), p('PK-PCM500-B10', 'Tablet', 'pack'), p('FG-AML5', 'Tablet', null), p('FG-INJ', 'Solution for injection', 'bulk')];
+    // Master data's kind: a capsule master offers the bulk products, a packing master the packs; no kind yet: both, as before.
+    const all = [p('FG-PCM500', 'Capsule', 'bulk'), p('PK-PCM500-B10', 'Capsule', 'pack'), p('FG-AML5', 'Capsule', null), p('FG-INJ', 'Solution for injection', 'bulk')];
     expect(ownProducts(all, 'bulk').map((x) => x.code)).toEqual(['FG-PCM500', 'FG-AML5']);
     expect(ownProducts(all, 'pack').map((x) => x.code)).toEqual(['PK-PCM500-B10', 'FG-AML5']);
     // Dispensing: the rooms with a weighing balance first (never a QC lab's), each by code, name and area.

@@ -23,7 +23,7 @@ type Dialog = { kind: 'done' | 'repeat' | 'check' | 'na' | 'send-back' | 'note' 
 const INVOLVING = ['started', 'value', 'done', 'corrected', 'not_applicable'];
 const same = (a: StepRow['key'], b: StepRow['key']) => a.stage === b.stage && a.sub === b.sub && a.step === b.step;
 
-// The value at the end of a worked line ("10.0 mg × 100000 tablets = 1.000 kg" → "1.000 kg").
+// The value at the end of a worked line ("10.0 mg × 100000 capsules = 1.000 kg" → "1.000 kg").
 const endOf = (r: Stored) => (r.ok ? /=\s*([^=;]+)$/.exec(r.shown)?.[1]?.trim() ?? `${r.value} ${r.unit}` : '');
 
 /**

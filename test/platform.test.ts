@@ -123,7 +123,7 @@ describe('master data through the platform views', () => {
         ('instrument', 'BAL-01', 'Balance', 2, false, 'DSP-01', '{}'),
         ('room', 'GRN-01', 'Granulation room 1', 1, true, null, '{"area": "granulation", "grade": "D"}'),
         ('material', 'MAT-001', 'Example API', 1, true, null, '{"category": "API", "unit": "kg"}'),
-        ('product', 'PRD-001', 'Example 500 mg tablets', 1, true, null, '{"strength": "500 mg", "dosageForm": "tablet"}');
+        ('product', 'PRD-001', 'Example 500 mg capsules', 1, true, null, '{"strength": "500 mg", "dosageForm": "capsule"}');
       create schema report;
       create view report.equipment_v1 as select id, code, name, version, active, f->>'type' as type, room_code from item where kind = 'equipment';
       create view report.instrument_v1 as select id, code, name, version, active, f->>'type' as type, room_code from item where kind = 'instrument';
@@ -146,7 +146,7 @@ describe('master data through the platform views', () => {
       ['BAL-01', 'instrument', 'DSP-01', false], ['RMG-01', 'equipment', 'GRN-01', true]]);
     expect(await m.rooms()).toMatchObject([{ code: 'GRN-01', area: 'granulation', grade: 'D' }]);
     expect(await m.materials()).toMatchObject([{ code: 'MAT-001', category: 'API', unit: 'kg' }]);
-    expect(await m.products()).toMatchObject([{ code: 'PRD-001', strength: '500 mg', dosageForm: 'tablet', kind: null }]);
+    expect(await m.products()).toMatchObject([{ code: 'PRD-001', strength: '500 mg', dosageForm: 'capsule', kind: null }]);
     await expect(md`select * from item`).rejects.toMatchObject({ code: '42501' });
   });
 

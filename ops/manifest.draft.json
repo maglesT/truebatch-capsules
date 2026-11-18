@@ -10,7 +10,7 @@
     {"code": "truebatch_capsules.batch.check", "label": "Check steps performed by another person (second person)"},
     {"code": "truebatch_capsules.batch.supervise", "label": "Production approval of a completed batch record"},
     {"code": "truebatch_capsules.qc.approve", "label": "QC approval of the results used for release"},
-    {"code": "truebatch_capsules.qa.release", "label": "QA review and release of bulk tablets"},
+    {"code": "truebatch_capsules.qa.release", "label": "QA review and release of bulk capsules"},
     {"code": "truebatch_capsules.view", "label": "View batch records and master versions"},
     {"code": "truebatch_capsules.demo.skip", "label": "Skip a running wait (demo installations only)"}
   ],

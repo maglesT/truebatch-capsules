@@ -9,7 +9,7 @@ export const formingCheck: Block = {
   fields: [
     { name: 'sealTemp', label: 'Sealing temperature', kind: 'number', unit: '°C' },
     { name: 'formTemp', label: 'Forming temperature', kind: 'number', unit: '°C', optional: true },
-    { name: 'pockets', label: 'Pockets fully formed, one whole tablet in each', kind: 'yes-no' },
+    { name: 'pockets', label: 'Pockets fully formed, one whole capsule in each', kind: 'yes-no' },
     { name: 'seal', label: 'Seal even, no wrinkles, channels or pin-holes; knurling and perforation clear', kind: 'yes-no' },
     { name: 'packingDone', label: 'Packing of the batch is finished (end check)', kind: 'yes-no' },
   ],

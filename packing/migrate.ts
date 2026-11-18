@@ -5,7 +5,7 @@ import { MIGRATIONS_DIR, migrate, type Plan } from '../db/migrate.js';
 
 // TrueBatch Capsules Packing's own database: TrueBatch Capsules' migrations (accounts, audit trail, signatures, masters,
 // batches and their events: the same tables, no copy of them), with its own app role and without the views TrueBatch
-// Tablets publishes (0006 to 0008, 0011 to 0016), then its own migrations (packing/migrations: the views packing publishes).
+// Capsules publishes (0006 to 0008, 0011 to 0016), then its own migrations (packing/migrations: the views packing publishes).
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const PACKING_MIGRATIONS_DIR = path.resolve(here, here.includes(`${path.sep}dist${path.sep}`) ? '../../packing/migrations' : 'migrations');
 export const PACKING_APP_ROLE = 'truebatch_capsules_packing_app';

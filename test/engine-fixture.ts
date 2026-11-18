@@ -1,10 +1,10 @@
 import { masterSchema, type MasterDoc } from '../shared/master/schema.js';
 import type { EventKind, Payload, StepEvent, StepKey } from '../shared/engine/index.js';
 
-// An invented film-coated tablet, 100 mg of an invented API, batch of 100 000 tablets (core 250.0 mg, coated
+// An invented film-coated capsule, 100 mg of an invented API, batch of 100 000 capsules (core 250.0 mg, coated
 // 257.5 mg). Core: 100.0 + 120.0 + 10.0 + 17.5 + 2.5 = 250.0 mg; the granulation water is a solvent.
-export const tablet = (): MasterDoc => masterSchema.parse({
-  header: { productItemId: 'prd-1', productCode: 'PRD-001', productName: 'Examplol 100 mg film-coated tablets', batchSize: '100000', fillWeightMg: '250.0', coatedWeightMg: '257.5', shellType: 'hard gelatin', shellSize: '1', shellWeightMg: '75.0',  dispensingRooms: ['DSP-01'] },
+export const capsule = (): MasterDoc => masterSchema.parse({
+  header: { productItemId: 'prd-1', productCode: 'PRD-001', productName: 'Examplol 100 mg film-coated capsules', batchSize: '100000', fillWeightMg: '250.0', coatedWeightMg: '257.5', shellType: 'hard gelatin', shellSize: '1', shellWeightMg: '75.0',  dispensingRooms: ['DSP-01'] },
   formula: [
     { key: 'api', materialItemId: 'mat-api', code: 'MAT-001', name: 'Examplol', mgPerCapsule: '100.0', role: 'api', place: 'intragranular', adjust: { potency: { basis: 'dried', standardIs: 'anhydrous' } } },
     { key: 'lactose', materialItemId: 'mat-lac', code: 'MAT-002', name: 'Lactose monohydrate', mgPerCapsule: '120.0', role: 'excipient', place: 'intragranular', adjust: { compensates: ['api'] } },
@@ -39,7 +39,7 @@ export const tablet = (): MasterDoc => masterSchema.parse({
     },
     {
       key: 'compression', name: 'Compression', kind: 'normal', machineTypes: ['tablet press'], uses: ['granulation'], role: 'Compression operator',
-      produces: { name: 'core tablets', holdHours: 720 },
+      produces: { name: 'core capsules', holdHours: 720 },
       steps: [
         { key: 'compress', block: { id: 'compress', version: 1 }, checker: false, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 40 },
           settings: { meanLimit: { low: '245.0', high: '255.0', unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0', hardnessLimit: { low: '60', high: '120', unit: 'N' }, thicknessLimit: { low: '3.8', high: '4.2', unit: 'mm' } } },
@@ -48,7 +48,7 @@ export const tablet = (): MasterDoc => masterSchema.parse({
     },
     {
       key: 'coating', name: 'Coating', kind: 'sub-batch', count: 2, machineTypes: ['coater'], uses: ['compression'], role: 'Coating operator',
-      produces: { name: 'coated tablets', holdHours: 2160 },
+      produces: { name: 'coated capsules', holdHours: 2160 },
       steps: [
         { key: 'coat', block: { id: 'coat', version: 1 }, checker: false, flow: { kind: 'repeat-until', maxRounds: 10 }, settings: { coreWeight: { ref: 'compression/compress/meanWeight' }, gainLimit: { low: '2.8', high: '3.2', unit: '%' } } },
         { key: 'qa-hold', block: { id: 'check', version: 1 }, checker: false, flow: { kind: 'qa-hold' }, settings: { what: 'Appearance score', unit: '', limit: { low: '4', unit: '' } } },

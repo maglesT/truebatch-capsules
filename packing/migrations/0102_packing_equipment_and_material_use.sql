@@ -1,5 +1,5 @@
 -- TrueBatch Capsules Packing publishes what its batches used (owner, 15 Nov 2026, from the demo run), with the names
--- and columns of TrueBatch Capsules' views, so the Logbook and MMS read packing as they read tablets:
+-- and columns of TrueBatch Capsules' views, so the Logbook and MMS read packing as they read capsules:
 -- equipment_use_v1 (the Logbook: the packing line and rooms "used on") as db/migrations/0006_report_views.sql, and
 -- material_use_v1 (MMS reduces the packing material lot's stock by reading it, nothing is sent): one row per signed
 -- issue step (pack-material-issue) with its lot, the packing material of the master's pack list and the quantity

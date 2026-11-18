@@ -146,9 +146,9 @@ export const mmsClient = (l: Link) => ({
 // ---- TrueBatch Capsules: report.batch_fact_v1 and deviation_note_v1 (published), read by TrueBatch Capsules Packing for its bulk batch. The
 // date of manufacture is its manufactured_on (owner, 15 Nov 2026): the plant-time date the bulk batch's first
 // processing step started (db/migrations/0007_batch_fact_manufactured_on.sql); null until a step has started.
-// goodQuantity (owner, 17 Nov 2026: pull, don't type): its good_quantity, the good tablets of its reconciliation
+// goodQuantity (owner, 17 Nov 2026: pull, don't type): its good_quantity, the good capsules of its reconciliation
 // (db/migrations/0015_batch_fact_output.sql), what the packing batch is issued; read through to_jsonb, so a view from
-// before the column was appended reads as null (the tablets are then typed).
+// before the column was appended reads as null (the capsules are then typed).
 export interface BulkRead { batchNo: string; productCode: string | null; status: string; released: boolean; mfgDate: string | null; dataAsOf: string | null; goodQuantity: string | null }
 type BulkRow = { batch_number: string; product_code: string | null; status: string; released: boolean; mfg_date: string | null; data_as_of: string | null; good_quantity: string | null };
 const bulkOf = (r: BulkRow): BulkRead => ({ batchNo: r.batch_number, productCode: r.product_code, status: r.status, released: r.released, mfgDate: r.mfg_date, dataAsOf: r.data_as_of,

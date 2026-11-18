@@ -13,14 +13,14 @@ type Calc = Block['calcs'][number];
 
 /** A label inside a sentence: each word lower-cased, except one with a capital after its first letter (pH, RSD, CFU). */
 export const lower = (label: string) => label.split(' ').map((w) => (/^.+[A-Z]/u.test(w) ? w : w.toLowerCase())).join(' ');
-/** "is" or "are" after a label: "the good tablets are", "the yield is". */
+/** "is" or "are" after a label: "the good capsules are", "the yield is". */
 const isAre = (label: string) => (/[^su]s$/.test(label.split(' ').at(-1) ?? '') ? 'are' : 'is');
 
 // Packing: the master's pack facts and the batch facts recorded at issue, in words.
 const FACTS: Record<string, string> = {
-  'pack.unitsPerPack': 'the tablets per pack', 'pack.packsPerCarton': 'the packs per carton', 'pack.shelfLifeMonths': 'the approved shelf life',
+  'pack.unitsPerPack': 'the capsules per pack', 'pack.packsPerCarton': 'the packs per carton', 'pack.shelfLifeMonths': 'the approved shelf life',
   'pack.expiryRule': 'the expiry rule', 'pack.type': 'the pack type', 'pack.destination': 'the destination', 'pack.gtin': 'the pack GTIN', 'pack.mrp': 'the MRP of the master',
-  'batch.bulk': 'the bulk batch number', 'batch.mfgDate': 'the date of manufacture of the bulk', 'batch.tablets': 'the bulk tablets issued',
+  'batch.bulk': 'the bulk batch number', 'batch.mfgDate': 'the date of manufacture of the bulk', 'batch.capsules': 'the bulk capsules issued',
   'batch.packs': 'the theoretical packs', 'batch.line': 'the packing line',
 };
 

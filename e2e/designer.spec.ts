@@ -31,23 +31,23 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   await expect(author.locator('.picker .pick-list')).not.toContainText('PK-001');
   await author.getByLabel('Product').fill('PRD-001');
   await author.getByRole('button', { name: /PRD-001/ }).click();
-  await author.getByLabel('Batch size (tablets)').fill('100000');
-  await author.getByLabel('Theoretical core weight (mg per tablet)').fill('250.0');
+  await author.getByLabel('Batch size (capsules)').fill('100000');
+  await author.getByLabel('Theoretical fill weight (mg per capsule)').fill('250.0');
   // A new master names no dispensing rooms; the rooms with a weighing balance are listed first, by name.
   await expect(author.getByText('None chosen yet: choose the rooms of master data where the materials are weighed')).toBeVisible();
   await author.getByLabel('Add to dispensing rooms (where the materials are weighed)').selectOption({ label: 'DSP-01 · Dispensing booth 1 (Dispensing)' });
   await author.getByText('Process skeleton: Direct compression, uncoated').click();
   await author.getByRole('button', { name: 'Create draft' }).click();
-  await expect(author.getByRole('heading', { name: 'PRD-001 · Examplol 100 mg tablets' })).toBeVisible();
+  await expect(author.getByRole('heading', { name: 'PRD-001 · Examplol 100 mg capsules' })).toBeVisible();
 
   // The formula: one material, picked from master data.
   await author.getByRole('button', { name: 'Formula', exact: true }).click();
   await author.getByRole('button', { name: '+ Add a material' }).click();
   await author.getByLabel('Material').fill('Examplol');
   await author.getByRole('button', { name: /MAT-001/ }).click();
-  await author.getByLabel('mg per tablet of Examplol').fill('250.0');
+  await author.getByLabel('mg per capsule of Examplol').fill('250.0');
   await author.getByLabel('Role of Examplol').selectOption('api');
-  await expect(author.locator('.total.ok')).toContainText('equals the theoretical core weight');
+  await expect(author.locator('.total.ok')).toContainText('equals the theoretical fill weight');
 
   // The process: 2 stages, each starting with line clearance (TC-10); the dry-mix step of blending is removed, leaving 4.
   await author.getByRole('button', { name: 'Process', exact: true }).click();
@@ -68,7 +68,7 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   await expect(author.getByRole('heading', { name: 'Weigh a material' })).toBeVisible();
   const sentence = author.locator('.sentence', { hasText: 'must be within ±' });
   await sentence.getByLabel('Target quantity').selectOption({ label: 'Examplol' });
-  await expect(author.locator('.ex-results')).toContainText('250.0 mg × 100000 tablets = 25.000 kg');
+  await expect(author.locator('.ex-results')).toContainText('250.0 mg × 100000 capsules = 25.000 kg');
   await expect(check.getByRole('button', { name: /Target quantity is not set/ })).toBeHidden();
 
   await check.getByRole('button', { name: /Sieve no\. \(mesh and aperture\) is not set/ }).click();

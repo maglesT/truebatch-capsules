@@ -39,7 +39,7 @@ beforeAll(async () => {
     return links({ recruitment: provider }, { recruitment: schema });
   });
   const item = (itemId: string, code: string, name: string) => ({ itemId, code, name, version: 1, active: true });
-  t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
+  t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'capsule' });
   t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
   const people = { author: ['truebatch_capsules.master.author'], issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.batch.check'],
     ravi: ['truebatch_capsules.batch.check'], kiran: ['truebatch_capsules.batch.check'], meera: ['truebatch_capsules.batch.check', 'truebatch_capsules.batch.operate'], qaperson: ['truebatch_capsules.qa.release'] } as const;

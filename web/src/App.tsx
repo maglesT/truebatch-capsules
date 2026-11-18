@@ -18,7 +18,7 @@ export function App() {
   const [demo, setDemo] = useState(false);
   useEffect(() => { void api<{ demo?: boolean }>('GET', '/api/health', undefined, true).then((h) => setDemo(!!h.demo), () => {}); }, []);
   const banner = demo && <div className="demo-banner" role="note">DEMO · a demonstration installation, not for GMP use · waits can be skipped</div>;
-  // Floor screens: #/batch/12, #/batch/12/step/0.1.0.1, #/batch/12/approve (the tablet's back button works); the QC
+  // Floor screens: #/batch/12, #/batch/12/step/0.1.0.1, #/batch/12/approve (the capsule's back button works); the QC
   // and QA screens: #/release, #/release/12.
   const route = useRoute();
   const release = route.release;
@@ -35,7 +35,7 @@ export function App() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-  // Real use of the screen (a tap, a key, e.g. typing 20 tablet weights before saving them) keeps the session alive as a
+  // Real use of the screen (a tap, a key, e.g. typing 20 capsule weights before saving them) keeps the session alive as a
   // saved entry does, at most one call a minute; the 15-minute idle rule stays for an unattended screen (polls never
   // count), and the session still ends when core's sign-on does (8 hours). An idle-ended session shows Sign in at once.
   useEffect(() => {

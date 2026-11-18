@@ -42,12 +42,12 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
   await author.page.getByLabel('Bulk product').fill('PRD-001');
   await author.page.getByRole('button', { name: /PRD-001/ }).click();
   await author.page.getByLabel('Packs per carton').fill('10');
-  await author.page.getByLabel('Standard packing batch (tablets)').fill('100000');
-  await author.page.getByLabel('Tablet weight (mg)').fill('250.0');
+  await author.page.getByLabel('Standard packing batch (capsules)').fill('100000');
+  await author.page.getByLabel('Capsule weight (mg)').fill('250.0');
   await author.page.getByLabel('MRP per pack').fill('125.00');
   await author.page.getByText('Process skeleton: Packing record').click();
   await author.page.getByRole('button', { name: 'Create draft' }).click();
-  await expect(author.page.getByRole('heading', { name: 'PK-001 · Examplol 100 mg tablets, 10 x 10 blister' })).toBeVisible();
+  await expect(author.page.getByRole('heading', { name: 'PK-001 · Examplol 100 mg capsules, 10 x 10 blister' })).toBeVisible();
 
   // Its packing materials, picked from master data: the printed foil and carton carry the batch coding.
   await author.page.getByRole('button', { name: 'Packing materials', exact: true }).click();
@@ -106,7 +106,7 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
   }
 
   // The packing batch, issued on the packing masters screen from the released bulk batch TB260001 (picked from TrueBatch
-  // Tablets) on line BL-01.
+  // Capsules) on line BL-01.
   const iss = await person(browser, 'piss');
   await masters(iss.page);
   const issue = iss.page.getByRole('dialog', { name: 'Issue a batch' });
@@ -120,15 +120,15 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
     await expect(issue.getByText(/Not offered, because the Logbook does not have/)).toHaveCount(0);
     await issue.getByRole('group', { name: 'Packing line' }).getByRole('button', { name: /BL-01/ }).click();
     await issue.getByLabel('Bulk batch no.').fill('TB260001');
-    // Pull, don't type: the tablets issued are what is left of the bulk batch's good tablets, from TrueBatch Capsules,
+    // Pull, don't type: the capsules issued are what is left of the bulk batch's good capsules, from TrueBatch Capsules,
     // offered in the field; less may be typed (a part issue), more is refused.
-    await expect(issue.getByLabel('Bulk tablets issued')).toHaveValue('100000');
-    await expect(issue.getByText('Left to issue of TB260001: 1,00,000 tablets (1,00,000 good tablets in TrueBatch Capsules). Issue all of it, or type less for a part issue.')).toBeVisible();
-    await issue.getByLabel('Bulk tablets issued').fill('100001');
+    await expect(issue.getByLabel('Bulk capsules issued')).toHaveValue('100000');
+    await expect(issue.getByText('Left to issue of TB260001: 1,00,000 capsules (1,00,000 good capsules in TrueBatch Capsules). Issue all of it, or type less for a part issue.')).toBeVisible();
+    await issue.getByLabel('Bulk capsules issued').fill('100001');
     await issue.getByRole('button', { name: 'Next: sign' }).click();
     await iss.page.getByRole('dialog').last().getByRole('button', { name: 'Sign', exact: true }).click();
     await expect(issue.getByRole('alert')).toContainText('BL-01 is not fit for use (Logbook): Dirty: clean and verify before the next use.');
-    await expect(issue.getByRole('alert')).toContainText('Only 100000 tablets of bulk batch TB260001 are left to issue (100000 good tablets, 0 already issued to other packing batches): issue 100000 or less.');
+    await expect(issue.getByRole('alert')).toContainText('Only 100000 capsules of bulk batch TB260001 are left to issue (100000 good capsules, 0 already issued to other packing batches): issue 100000 or less.');
     await issue.getByRole('button', { name: 'Cancel' }).click();
   } finally {
     await lb.unsafe(`revoke select on ${E2E_PACKING_SCHEMA}_lb.equipment_status_v1 from ${PACKING_APP_ROLE}`);
@@ -153,9 +153,9 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
   // The operator receives the bulk on the floor screen: the bulk batch and its date of manufacture come from TrueBatch Capsules.
   const op = await person(browser, 'pop');
   const chk = await person(browser, 'pchk');
-  await op.page.getByRole('button', { name: new RegExp(`${batch.batchNo} · Examplol 100 mg tablets, 10 x 10 blister`) }).click();
+  await op.page.getByRole('button', { name: new RegExp(`${batch.batchNo} · Examplol 100 mg capsules, 10 x 10 blister`) }).click();
   await expect(op.page.getByRole('navigation', { name: 'Stages' })).toContainText('Issue to the line');
-  await op.page.getByRole('button', { name: /^1 Bulk tablets issued to the line/ }).click();
+  await op.page.getByRole('button', { name: /^1 Bulk capsules issued to the line/ }).click();
   await expect(op.page.locator('main')).toContainText('TB260001');
   await expect(op.page.locator('main')).toContainText('From TrueBatch Capsules: TrueBatch Capsules batch TB260001: RELEASED, PRD-001, manufactured 3 Nov 2026');
   await op.page.getByRole('group', { name: 'Containers closed and intact, labels show this bulk batch and RELEASED' }).getByRole('button', { name: 'Yes' }).click();
@@ -220,7 +220,7 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
   const qa = await person(browser, 'pqa');
   await qa.page.getByRole('button', { name: 'To review' }).click();
   await qa.page.getByRole('region', { name: 'Waiting for QA release' }).getByRole('button', { name: new RegExp(batch.batchNo) }).click();
-  await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk tablets issued to the line');
+  await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk capsules issued to the line');
   // Whole-suite run, S24: TrueBatch Capsules publishes no deviation notes here (the link does not answer), so the bulk
   // batch's deviations are not checked: QA checks them in the Deviations system and types what was found.
   await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001');
@@ -239,7 +239,7 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
 });
 
 test('TC-21 QA terminates a packing batch after materials were issued: the window, whole on the screen, asks what went back to stores of each lot, shown with the termination; a refusal on the step screen is not hidden behind the action bar', async ({ browser }) => {
-  const tablet = { width: 1366, height: 900 };
+  const capsule = { width: 1366, height: 900 };
   // A packing batch on line BL-01 (free again after the journey), its bulk received and checked, through the API.
   const iss = await person(browser, 'piss');
   const mv = ((await (await iss.page.request.get('/api/masters')).json()) as { id: number; state: string }[]).find((v) => v.state === 'effective')!.id;
@@ -248,7 +248,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   expect(res.ok(), await res.text()).toBe(true);
   const batch = await res.json() as { id: number; batchNo: string };
   await iss.ctx.close();
-  const op = await person(browser, 'pop', tablet);
+  const op = await person(browser, 'pop', capsule);
   const chk = await person(browser, 'pchk');
   type Detail = { steps: { id: string; state: string; actions: string[]; contentHash: string }[] };
   const step = async (p: Page, key: string) => ((await (await p.request.get(`/api/batches/${batch.id}`)).json()) as Detail).steps.find((s) => s.id === key)!;
@@ -270,7 +270,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   await post(op, '0.1.2.1', 'start');
   await post(op, '0.1.2.1', 'record', { values: { ...lot('CTN-2'), matches: 'yes' } });
 
-  // The carton issue on the line's tablet: the quantity in the material's unit (nos, as MMS and its refusals say), and
+  // The carton issue on the line's capsule: the quantity in the material's unit (nos, as MMS and its refusals say), and
   // a refusal under the field shown in full, above the sticky Done bar.
   await op.page.goto(`/#/batch/${batch.id}/step/0.1.2.1`);
   const quantity = op.page.locator('.fl-field', { hasText: 'Quantity issued' });
@@ -289,7 +289,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   // to just above the bar: the refusal is scrolled up into view.
   await op.page.setViewportSize({ width: 1366, height: 760 });
   await refused();
-  await op.page.setViewportSize(tablet);
+  await op.page.setViewportSize(capsule);
   await quantity.getByRole('textbox').fill('105');
   await quantity.getByRole('textbox').press('Enter');
   await expect(quantity.getByRole('alert')).toHaveCount(0);
@@ -311,7 +311,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
 
   // QA terminates it: the window is whole on the screen, over the page, at 1366 × 900 and in a browser window (760), from
   // the batch screen and from the To review list (where the row moves on hover: the window is not held inside its card).
-  const qa = await person(browser, 'pqa', tablet);
+  const qa = await person(browser, 'pqa', capsule);
   const window = qa.page.getByRole('dialog', { name: `Terminate batch ${batch.batchNo}` });
   for (const height of [900, 760]) {
     await qa.page.setViewportSize({ width: 1366, height });
@@ -332,8 +332,8 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   }
   await qa.page.getByRole('region', { name: 'In production' }).locator('.pending-row', { hasText: batch.batchNo }).getByRole('button', { name: 'Terminate batch' }).click();
   const back = qa.page.getByRole('group', { name: 'Back to stores' });
-  // The bulk tablets issued to it first: what went back of them can be issued to another packing batch.
-  await expect(back).toContainText('Lot TB260002 · bulk PRD-001 · Examplol 100 mg tablets (used 60000 tablets)');
+  // The bulk capsules issued to it first: what went back of them can be issued to another packing batch.
+  await expect(back).toContainText('Lot TB260002 · bulk PRD-001 · Examplol 100 mg capsules (used 60000 capsules)');
   await expect(back).toContainText('Lot FOIL-2 · PM-101 · Printed aluminium foil (used 1250 m)');
   await expect(back).toContainText('Lot CTN-2 · PM-103 · Carton (used 105 nos)');
   await qa.page.getByLabel('Reason for terminating').fill('Blister line 1 down for repair: the batch cannot be finished');
@@ -344,15 +344,15 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   await back.getByLabel('Lot FOIL-2 back to stores').fill('300');
   await back.getByLabel('Lot CTN-2 back to stores').fill('5');
   await qa.page.getByRole('button', { name: 'Continue to sign' }).click();
-  await expect(qa.page.getByRole('dialog')).toContainText('Back to stores unused: lot TB260002 60000 tablets, lot FOIL-2 300 m, lot CTN-2 5 nos; the rest counts as used.');
+  await expect(qa.page.getByRole('dialog')).toContainText('Back to stores unused: lot TB260002 60000 capsules, lot FOIL-2 300 m, lot CTN-2 5 nos; the rest counts as used.');
   await wholeOnScreen(qa.page, qa.page.getByRole('dialog').locator('form'));
   await sign(qa.page);
   await expect(qa.page.getByRole('region', { name: 'In production' }).locator('.pending-row', { hasText: batch.batchNo })).toHaveCount(0);
-  await qa.page.setViewportSize(tablet);
+  await qa.page.setViewportSize(capsule);
   await qa.page.goto(`/#/batch/${batch.id}`);
-  await expect(qa.page.getByRole('note')).toContainText(/^Terminated by PQA at .* IST: Blister line 1 down for repair: the batch cannot be finished · Back to stores unused: lot TB260002 \(bulk PRD-001 · Examplol 100 mg tablets\) 60000 tablets, lot FOIL-2 \(PM-101 · Printed aluminium foil\) 300 m, lot CTN-2 \(PM-103 · Carton\) 5 nos; the rest counts as used$/);
-  // The batch screen: the bulk tablets issued to this batch (not the master's standard batch), and no stage is "now".
-  await expect(qa.page.getByRole('region', { name: 'Batch', exact: true })).toContainText('Bulk tablets issued 60,000 tablets');
+  await expect(qa.page.getByRole('note')).toContainText(/^Terminated by PQA at .* IST: Blister line 1 down for repair: the batch cannot be finished · Back to stores unused: lot TB260002 \(bulk PRD-001 · Examplol 100 mg capsules\) 60000 capsules, lot FOIL-2 \(PM-101 · Printed aluminium foil\) 300 m, lot CTN-2 \(PM-103 · Carton\) 5 nos; the rest counts as used$/);
+  // The batch screen: the bulk capsules issued to this batch (not the master's standard batch), and no stage is "now".
+  await expect(qa.page.getByRole('region', { name: 'Batch', exact: true })).toContainText('Bulk capsules issued 60,000 capsules');
   await expect(qa.page.getByRole('region', { name: 'Batch', exact: true })).not.toContainText('Batch size');
   const stages = qa.page.getByRole('navigation', { name: 'Stages' });
   await expect(stages).toContainText('Terminated');

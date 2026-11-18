@@ -9,7 +9,7 @@ import { at, ev, small, unplaced } from './engine-fixture.js';
 // The problems, without the rooms a stage must name (TC-11): the fixtures name none.
 const checks = (d: Parameters<typeof masterChecks>[0]) => unplaced(masterChecks(d));
 
-// The standard tablet blocks: each is a description that the format accepts and that a small master can use without
+// The standard capsule blocks: each is a description that the format accepts and that a small master can use without
 // a master-check problem; the engine runs them like any other block.
 
 const pct = (low: string, high: string) => ({ low, high, unit: '%' });
@@ -36,7 +36,7 @@ const NEW: [string, Record<string, unknown>, object?][] = [
   ['content-uniformity', { coating: 'sugar-coated' }],
   ['spray-coat', { coreWeight: { header: 'fillWeight' }, base: 'start', gainLimit: pct('2.8', '3.2'), inletLimit: { low: '50', high: '70', unit: '°C' }, bedLimit: { low: '38', high: '45', unit: '°C' } }, { everyMinutes: 15, flow: { kind: 'repeat-until', maxRounds: 20 } }],
   ['polish-print', { print: 'Logo in black' }],
-  ['qa-sample', { sampleLimit: { low: '50', high: '60', unit: 'tablets' } }, { flow: { kind: 'qa-hold' } }],
+  ['qa-sample', { sampleLimit: { low: '50', high: '60', unit: 'capsules' } }, { flow: { kind: 'qa-hold' } }],
   ['tablet-reconciliation', { theoretical: { header: 'batchSize' }, meanWeight: '100.0 mg', yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') }],
 ];
 const using = (id: string, settings: object, options: object = {}): MasterDoc => {
@@ -45,7 +45,7 @@ const using = (id: string, settings: object, options: object = {}): MasterDoc =>
   return small([{ role: 'Production operator', steps: b.gmp === 'yield' ? [step] : [step, yieldStep] }]);
 };
 
-describe('the standard tablet blocks', () => {
+describe('the standard capsule blocks', () => {
   it.each(NEW)('the %s block is a valid description, and a small master using it passes the master check', (id, settings, options) => {
     expect(blockProblems(findBlock({ id, version: 1 })!)).toEqual([]);
     expect(checks(using(id, settings, options)).map((p) => `${p.path}: ${p.message}`)).toEqual([]);
@@ -87,7 +87,7 @@ const n = (value: string, unit: string, count: number) => Array.from({ length: c
 
 describe('the engine runs the new blocks like any other', () => {
   // Granulation gives 0.098 kg of granules; blending lubricates on that weight; compression checks the tooling
-  // before and after, sets up the press, releases it and reconciles the tablets.
+  // before and after, sets up the press, releases it and reconciles the capsules.
   const tooling = { key: 'tooling-before', block: { id: 'punch-die-check', version: 1 }, checker: true, settings: {} };
   const doc = small([
     { key: 'granulation', role: 'Granulation operator', steps: [{ ...yieldStep, settings: { ...yieldStep.settings, accountabilityLimit: pct('99.0', '100.5') } }] },
@@ -104,7 +104,7 @@ describe('the engine runs the new blocks like any other', () => {
   const mixing = (from: string, to: string) => ({ mixStart: `2026-11-15T08:${from}:00Z`, mixEnd: `2026-11-15T08:${to}:00Z` });
   const intact = { tooling: 'TS-08-01', upperPunches: 'yes', lowerPunches: 'yes', dies: 'yes', damaged: { value: '0', unit: 'units' } };
 
-  it('record → done, step by step: lubricant re-scaled to the actual granules, tooling checked before and after, tablets reconciled', () => {
+  it('record → done, step by step: lubricant re-scaled to the actual granules, tooling checked before and after, capsules reconciled', () => {
     expect(checks(doc)).toEqual([]);
     let e: StepEvent[] = walk(doc, [], '0.1.0.1', { output: kg('0.098'), samples: kg('0.001'), rejects: kg('0.001') });
     // 0.100 kg lubricant × 0.098 kg ÷ 0.100 kg = 0.098 kg; net 0.5980 − 0.5000 = 0.0980 kg
@@ -118,8 +118,8 @@ describe('the engine runs the new blocks like any other', () => {
       force: { value: '8.0', unit: 'kN' }, speed: { value: '30', unit: 'rpm' } });
     e = walk(doc, e, '2.1.2.1', { machine: 'TP-01', allStations: 'yes', weights: n('98.0', 'mg', 20), hardness: n('60', 'N', 10), thickness: n('3.0', 'mm', 10), appearance: 'yes' });
     e = walk(doc, e, '2.1.3.1', intact);
-    // 0.09604 kg ÷ 98.0 mg = 980 tablets; rejects 0.00098 kg ÷ 98.0 mg = 10; 980 + 10 + 10 = 1000 of 1000
-    const counted = { output: kg('0.09604'), rejectWeight: kg('0.00098'), samples: { value: '10', unit: 'tablets' } };
+    // 0.09604 kg ÷ 98.0 mg = 980 capsules; rejects 0.00098 kg ÷ 98.0 mg = 10; 980 + 10 + 10 = 1000 of 1000
+    const counted = { output: kg('0.09604'), rejectWeight: kg('0.00098'), samples: { value: '10', unit: 'capsules' } };
     expect(evaluate(doc, e, parseKey('2.1.4.1')!, counted).accountability).toMatchObject({ ok: true, value: '100', check: { pass: true } });
     e = walk(doc, e, '2.1.4.1', counted);
     const { stages, steps } = openSteps(doc, e, at(10_000));
@@ -150,7 +150,7 @@ describe('the engine runs the new blocks like any other', () => {
     expect(v([...events, ev('note', '0.1.0.1', { min: 2, payload: { text: 'Upper punch 7 chipped; tooling sent for repair' } })])).toEqual([]);
   });
 
-  it('a staged test: disintegration needs the 12 more tablets only when 1 or 2 of the first 6 fail', () => {
+  it('a staged test: disintegration needs the 12 more capsules only when 1 or 2 of the first 6 fail', () => {
     const d = using('disintegration', NEW[13]![1]);
     const key = { stage: 0, sub: 1, step: 0, round: 1 };
     const times = (s: string) => s.split(' ').map((value) => ({ value, unit: 'min' }));

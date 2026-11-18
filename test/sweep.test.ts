@@ -1,4 +1,4 @@
-// The sweep: every block of the library (tablets and packing) in a small master with all its settings set, and the
+// The sweep: every block of the library (capsules and packing) in a small master with all its settings set, and the
 // test masters, worked out with every field filled ("1" for a number, yes, the first option), once with the required
 // fields only and once with all, in a first and a second round. A template may refuse what it is given; it must never
 // crash on it (a crash is "could not use these inputs": the step could not be signed).
@@ -7,7 +7,7 @@ import { BLOCKS, findBlock, type Block } from '../shared/blocks/index.js';
 import { evaluate, type StepEvent, type Value } from '../shared/engine/index.js';
 import { masterChecks } from '../shared/master/checks.js';
 import { masterSchema, type MasterDoc, type Step } from '../shared/master/schema.js';
-import { at, ev, tablet } from './engine-fixture.js';
+import { at, ev, capsule } from './engine-fixture.js';
 import { GTIN, pack, packing } from './packing-fixture.js';
 
 const pct = (low: string, high: string) => ({ low, high, unit: '%' });
@@ -44,7 +44,7 @@ const SETTINGS: Record<string, Step['settings']> = {
     bedLimit: { low: '35', high: '45', unit: '°C' }, sprayRateLimit: { low: '50', high: '150', unit: 'g/min' } },
   'polish-print': { print: 'Logo in black' },
   check: { what: 'Weight', unit: 'mg', limit: { low: '95', high: '105', unit: 'mg' } },
-  'qa-sample': { sampleLimit: { low: '50', high: '60', unit: 'tablets' } },
+  'qa-sample': { sampleLimit: { low: '50', high: '60', unit: 'capsules' } },
   'stage-yield': { theoretical: { header: 'fillBatch' }, yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') },
   'tablet-reconciliation': { theoretical: { header: 'batchSize' }, meanWeight: '100.0 mg', yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') },
   'pack-material-issue': { material: { formula: 'foil' }, unit: 'm' },
@@ -112,7 +112,7 @@ describe('the sweep: no template crashes on any block or test master', () => {
     expect(masterChecks(using(b)).filter((p) => /every reading would be refused/.test(p.message))).toEqual([]);
   });
 
-  it.each([['tablet', tablet()], ['packing', packing()], ['packing, serialised', packing({ gtin: GTIN, serialisation: true })],
+  it.each([['capsule', capsule()], ['packing', packing()], ['packing, serialised', packing({ gtin: GTIN, serialisation: true })],
     ['packing, bottles', packing({ type: 'bottle' })]] as const)('the %s test master', (_name, doc) => {
     for (const all of [false, true]) expect(crashes(doc, all)).toEqual([]);
     expect(masterChecks(doc).filter((p) => /every reading would be refused/.test(p.message))).toEqual([]);

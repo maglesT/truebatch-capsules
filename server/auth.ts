@@ -14,7 +14,7 @@ export const PERMISSIONS = {
   'truebatch_capsules.batch.check': 'Check steps performed by another person (second person)',
   'truebatch_capsules.batch.supervise': 'Production approval of a completed batch record',
   'truebatch_capsules.qc.approve': 'QC approval of the results used for release',
-  'truebatch_capsules.qa.release': 'QA review and release of bulk tablets',
+  'truebatch_capsules.qa.release': 'QA review and release of bulk capsules',
   'truebatch_capsules.view': 'View batch records and master versions',
   'truebatch_capsules.demo.skip': 'Skip a running wait (demo installations only)',
 } as const;

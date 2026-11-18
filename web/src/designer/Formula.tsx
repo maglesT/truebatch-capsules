@@ -1,5 +1,5 @@
 // Screen 3: the formula. One row per material picked from master data (the product's materials first), mg per
-// tablet, role, place and the batch quantity worked out; the adjustment panel for the selected line; live totals.
+// capsule, role, place and the batch quantity worked out; the adjustment panel for the selected line; live totals.
 import { useState } from 'react';
 import type { MasterData, MasterRow } from '../api-designer.js';
 import type { Problem } from '../../../shared/master/checks.js';
@@ -34,17 +34,17 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
   return (
     <>
       <div className="card">
-        <div className="d-section-head"><h2>Formula</h2><span className="muted small">Quantities per tablet; the batch quantity is worked out for {grouped(doc.header.batchSize)} tablets.</span></div>
+        <div className="d-section-head"><h2>Formula</h2><span className="muted small">Quantities per capsule; the batch quantity is worked out for {grouped(doc.header.batchSize)} capsules.</span></div>
         <div className="table-wrap">
           <table className="plain-table formula-table">
-            <thead><tr><th>Material</th><th>mg per tablet</th><th>Role</th><th>Place</th><th>Batch quantity</th><th>Adjustment</th><th /></tr></thead>
+            <thead><tr><th>Material</th><th>mg per capsule</th><th>Role</th><th>Place</th><th>Batch quantity</th><th>Adjustment</th><th /></tr></thead>
             <tbody>
               {lines.map((l, i) => {
                 const bad = problems.some((p) => p.path.startsWith(`formula[${i}]`) && p.level === 'error');
                 return (
                   <tr key={l.key} className={selected === i ? 'sel' : bad ? 'bad-row' : ''} onClick={() => onSelect(i)}>
                     <td><b>{l.code}</b><span className="cell-sub">{l.name}</span></td>
-                    <td><Decimal label={`mg per tablet of ${l.name}`} value={l.mgPerCapsule} onChange={(v) => put(i, { ...l, mgPerCapsule: v })} /></td>
+                    <td><Decimal label={`mg per capsule of ${l.name}`} value={l.mgPerCapsule} onChange={(v) => put(i, { ...l, mgPerCapsule: v })} /></td>
                     <td><select aria-label={`Role of ${l.name}`} value={l.role} onChange={(e) => put(i, { ...l, role: e.target.value as FormulaLine['role'] })}>
                       <option value="api">API</option><option value="excipient">Excipient</option><option value="solvent">Removed in processing (solvent, processing aid)</option></select></td>
                     <td><select aria-label={`Place of ${l.name}`} value={l.place === 'coating' ? `coating:${l.layer ?? 1}` : l.place}
@@ -61,8 +61,8 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
           </table>
         </div>
         <div className="totals">
-          <Total label="Core materials" value={coreTotal} target={valid(doc.header.fillWeightMg) ? new Dec(doc.header.fillWeightMg) : null} what="the theoretical core weight" />
-          {(coat.length > 0 || doc.header.coatedWeightMg) && <Total label="Coating" value={coatTotal} target={gain} what="the weight gain (coated − core weight)" />}
+          <Total label="Core materials" value={coreTotal} target={valid(doc.header.fillWeightMg) ? new Dec(doc.header.fillWeightMg) : null} what="the theoretical fill weight" />
+          {(coat.length > 0 || doc.header.coatedWeightMg) && <Total label="Coating" value={coatTotal} target={gain} what="the weight gain (coated − fill weight)" />}
         </div>
         {adding ? (
           <div className="add-box">
@@ -193,7 +193,7 @@ function AdjustPanel({ doc, line, onChange, problems, onAnswer }: { doc: MasterD
       <fieldset className="checklist">
         <legend>As written in the source (checked, never used)</legend>
         <div className="form-grid">
-          {line.role === 'api' && <label>Label claim per tablet<input aria-label="Label claim per tablet" placeholder="e.g. 20 mg or 10 mEq" value={line.labelClaim ?? ''} onChange={(e) => field('labelClaim', e.target.value)} /></label>}
+          {line.role === 'api' && <label>Label claim per capsule<input aria-label="Label claim per capsule" placeholder="e.g. 20 mg or 10 mEq" value={line.labelClaim ?? ''} onChange={(e) => field('labelClaim', e.target.value)} /></label>}
           <label>Batch quantity<input aria-label="Batch quantity as written" placeholder="e.g. 120.000 kg" value={line.batchQuantity ?? ''} onChange={(e) => field('batchQuantity', e.target.value)} /></label>
         </div>
       </fieldset>

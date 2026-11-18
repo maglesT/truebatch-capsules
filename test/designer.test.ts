@@ -9,7 +9,7 @@ import { dispensing, workedExample } from '../web/src/designer/example.js';
 import { answerDoc, earlierRefs, neededKind, scaleDoc, stepFrom } from '../web/src/designer/model.js';
 import { sentence, sentenceText } from '../web/src/designer/sentences.js';
 import { SKELETON_LIST, skeletonStages } from '../web/src/designer/skeletons.js';
-import { tablet, unplaced } from './engine-fixture.js';
+import { capsule, unplaced } from './engine-fixture.js';
 import { packing } from './packing-fixture.js';
 
 // The designer's pure parts: sentences instead of formulas, inputs offered by kind, worked examples and the
@@ -23,14 +23,14 @@ describe('master designer', () => {
       const words = sentence(b, c).filter((p) => typeof p === 'string').join('');
       expect(words, `${b.id}.${c.name}`).not.toMatch(/[×÷=]|\$|T\d|C\d/);
     }
-    const d = tablet();
+    const d = capsule();
     const weigh = d.stages[1]!.steps[0]!;
     expect(sentenceText(d, block('weigh'), weigh.settings, sentence(block('weigh'), block('weigh').calcs[1]!)))
       .toBe('The net weight must be within ± 0.5 % of the batch quantity of Examplol, adjusted for the lot.');
   });
 
   it('every block reads in words with its default settings: a limit written in the block too, never [object Object]', () => {
-    const d = tablet();
+    const d = capsule();
     for (const b of BLOCKS) {
       const t = stepFrom(b, []);
       const text = [stepText(d, t, 0), ...b.calcs.map((c) => sentenceText(d, b, t.settings, sentence(b, c)))].join(' ');
@@ -53,15 +53,15 @@ describe('master designer', () => {
     expect(['pressureLimit', 'carrLimit', 'hausnerLimit', 'reposeLimit', 'finesLimit', 'recoveryLimit', 'rsdLimit', 'mixTimeLimit']
       .map((n) => neededKind(BLOCKS.find((b) => b.settings.some((x) => x.name === n))!, n)))
       .toEqual(['pressure', 'fraction', 'number', 'angle', 'fraction', 'fraction', 'fraction', 'time']);
-    const masses = earlierRefs(tablet(), 3, 0).filter((r) => r.kind === 'mass').map((r) => r.ref);
+    const masses = earlierRefs(capsule(), 3, 0).filter((r) => r.kind === 'mass').map((r) => r.ref);
     expect(masses).toContain('compression/compress/meanWeight');
     expect(masses).not.toContain('compression/yield/yield');
     // A later step, or a step inside another sub-batch stage, is never offered.
-    expect(earlierRefs(tablet(), 2, 0).map((r) => r.ref).some((r) => r.startsWith('compression/') || r.startsWith('coating/'))).toBe(false);
+    expect(earlierRefs(capsule(), 2, 0).map((r) => r.ref).some((r) => r.startsWith('compression/') || r.startsWith('coating/'))).toBe(false);
   });
 
   it('worked examples run the engine on example values: the weighing meets its adjusted target, the yield is in limits', () => {
-    const d = tablet();
+    const d = capsule();
     const api = workedExample(d, 1, 0);
     expect(api.results.target).toMatchObject({ ok: true, shown: expect.stringContaining('10.000 kg × 100 ÷ 98.505 % = 10.152 kg') });
     expect(api.results.netCheck).toMatchObject({ ok: true, check: { pass: true } });
@@ -71,7 +71,7 @@ describe('master designer', () => {
   });
 
   it('TC-13 the calculation preview adjusts the API for the lot and compensates the filler', () => {
-    const rows = dispensing(tablet(), { api: { assay: '98.0', lod: '2.0' } });
+    const rows = dispensing(capsule(), { api: { assay: '98.0', lod: '2.0' } });
     expect(rows[0]!.adjusted).toMatchObject({ ok: true, value: expect.stringMatching(/^10\.41232/) });
     expect(rows[1]!.adjusted).toMatchObject({ ok: true, value: expect.stringMatching(/^11\.58767/) });
     expect(rows[2]!.adjusted).toBeUndefined();
@@ -101,15 +101,15 @@ describe('master designer', () => {
     const wg = skeletonStages('wet-granulation-film-coated', header);
     const at = (stage: string, step: string) => wg.find((s) => s.key === stage)!.steps.find((t) => t.key === step)!;
     expect(at('coating', 'coat')).toMatchObject({ block: { id: 'spray-coat' }, everyMinutes: 30, flow: { kind: 'repeat-until' } });
-    // Blending adds the extragranular materials and the lubricant: its yield is on the core batch weight (17 Nov 2026
+    // Blending adds the extragranular materials and the lubricant: its yield is on the fill batch weight (17 Nov 2026
     // run, F11); the coating yield on the good cores; the coating gain on the actual core mean; the end point checked.
     expect(at('blending', 'yield').settings.theoretical).toEqual({ header: 'fillBatch' });
     expect(at('coating', 'yield')).toMatchObject({ block: { id: 'tablet-reconciliation' }, settings: { theoretical: { ref: 'compression/yield/goodTablets' }, meanWeight: { ref: 'coating/coat/meanWeight' } } });
     expect(at('coating', 'coat').settings.coreWeight).toEqual({ ref: 'compression/compress/meanWeight' });
     expect(at('granulation', 'granulate').checker).toBe(true);
-    // An uncoated wet-granulated tablet (17 Nov 2026 run, F10): the same stages without the coating suspension and coating.
+    // An uncoated wet-granulated capsule (17 Nov 2026 run, F10): the same stages without the coating suspension and coating.
     expect(skeletonStages('wet-granulation-uncoated', header).map((s) => s.key)).toEqual(['binder', 'granulation', 'blending', 'compression']);
-    expect(skeletonStages('wet-granulation-uncoated', header)[3]!.produces).toEqual({ name: 'bulk tablets', holdHours: 720 });
+    expect(skeletonStages('wet-granulation-uncoated', header)[3]!.produces).toEqual({ name: 'bulk capsules', holdHours: 720 });
   });
 
   it('a weigh step added from the library starts with the usual tolerance', () => {
@@ -117,8 +117,8 @@ describe('master designer', () => {
     expect(stepFrom(block('sift'), []).settings).toEqual({});
   });
 
-  it('copy to a new batch size scales typed batch quantities, not limits or quantities per tablet', () => {
-    const d = scaleDoc(tablet(), '50000');
+  it('copy to a new batch size scales typed batch quantities, not limits or quantities per capsule', () => {
+    const d = scaleDoc(capsule(), '50000');
     expect(d.header.batchSize).toBe('50000');
     expect(d.stages[1]!.steps[6]!.settings.theoretical).toBe('11.500 kg');
     expect(d.stages[1]!.steps[6]!.settings.yieldLimit).toEqual({ low: '97.0', high: '100.5', unit: '%' });
@@ -126,8 +126,8 @@ describe('master designer', () => {
   });
 
   it('the changes view shows what changed, was added or removed since the previous version', () => {
-    const prev = tablet();
-    const next = tablet();
+    const prev = capsule();
+    const next = capsule();
     next.formula[4]!.mgPerCapsule = '18.0';
     next.stages[2]!.steps.pop();
     next.stages[1]!.produces!.holdHours = 48;
@@ -142,7 +142,7 @@ describe('master designer', () => {
     expect([top!.title, materials!.title]).toEqual(['Pack', 'Packing materials']);
     const text = [top, materials].flatMap((s) => s!.lines.map((l) => l.text)).join(' ');
     expect(text).not.toMatch(/formula|uncoated|coated weight/i);
-    expect(text).toMatch(/Blister of 10 tablets; \d+ packs per carton\./);
+    expect(text).toMatch(/Blister of 10 capsules; \d+ packs per carton\./);
     expect(materials!.lines.length).toBe(packing().pack!.materials.length);
   });
 
@@ -178,7 +178,7 @@ describe('master designer', () => {
   });
 
   it('calculation checks: the author answers a warning; the answer is kept in the master and shown in the review and changes views', () => {
-    const prev = tablet();
+    const prev = capsule();
     prev.formula[0]!.name = 'Examplol hydrochloride';
     const warning = masterChecks(prev).find((p) => p.question?.key === 'label-basis/api')!;
     expect(blocking(warning)).toBe(true);

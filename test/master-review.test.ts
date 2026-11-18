@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { call, freshApp, login, proofFor, seedUser, type TestApp } from './helpers.js';
-import { tablet, placed } from './engine-fixture.js';
+import { capsule, placed } from './engine-fixture.js';
 
 // Review and approval of master versions (TC-02): the author sends for review (signs "prepared"), a second person
 // checks ("checked") or returns, QA approves ("approved") with a change control number, and making a version
@@ -12,8 +12,8 @@ const item = (itemId: string, c: string, name: string) => ({ itemId, code: c, na
 
 beforeAll(async () => {
   t = await freshApp();
-  t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated tablets'), strength: '100 mg', dosageForm: 'tablet' });
-  for (const l of tablet().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
+  t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated capsules'), strength: '100 mg', dosageForm: 'capsule' });
+  for (const l of capsule().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
   const people = {
     author: ['truebatch_capsules.master.author'], author2: ['truebatch_capsules.master.author', 'truebatch_capsules.master.check'],
     checker: ['truebatch_capsules.master.check'], quality: ['truebatch_capsules.master.approve'], qachecker: ['truebatch_capsules.master.approve', 'truebatch_capsules.master.check'],
@@ -34,8 +34,8 @@ const review = async (id: number, who = 'viewer') => (await as(who, 'GET', `/api
 const state = async (id: number) => ((await as('viewer', 'GET', `/api/master-versions/${id}`)).json() as { state: string }).state;
 const act = async (who: string, id: number, action: string, extra: object = {}) =>
   as(who, 'POST', `/api/master-versions/${id}/${action}`, { proof: proofFor(who), contentHash: (await review(id, who)).contentHash, ...extra });
-const draft = async (doc = placed(tablet())) => ((await as('author', 'POST', '/api/masters', { doc })).json() as { id: number; masterId: number });
-async function approved(doc = placed(tablet())) {
+const draft = async (doc = placed(capsule())) => ((await as('author', 'POST', '/api/masters', { doc })).json() as { id: number; masterId: number });
+async function approved(doc = placed(capsule())) {
   const v = await draft(doc);
   expect((await act('author', v.id, 'submit')).statusCode).toBe(200);
   expect((await act('checker', v.id, 'pass')).statusCode).toBe(200);
@@ -45,7 +45,7 @@ async function approved(doc = placed(tablet())) {
 
 describe('master review and approval', () => {
   it('TC-01 a version with master-check errors cannot be sent for review', async () => {
-    const doc = placed(tablet());
+    const doc = placed(capsule());
     doc.formula[0]!.mgPerCapsule = '90.0';
     const { id } = await draft(doc);
     expect((await review(id, 'author')).refusals.submit).toMatch(/master check shows 1 problem/);
@@ -56,7 +56,7 @@ describe('master review and approval', () => {
   });
 
   it('TC-01 a limit written through the API in a unit of another kind than its value: saved as a draft, refused by the check, not sent for review', async () => {
-    const doc = placed(tablet());
+    const doc = placed(capsule());
     const compress = doc.stages[2]!.steps.find((t) => t.key === 'compress')!;
     compress.settings.meanLimit = { low: '245.0', high: '255.0', unit: 'min' };
     const { id } = await draft(doc);
@@ -71,7 +71,7 @@ describe('master review and approval', () => {
   });
 
   it('calculation checks: a warning that needs an answer blocks "Send for review" until the author answers it in the master', async () => {
-    const doc = placed(tablet());
+    const doc = placed(capsule());
     doc.formula[4]!.adjust = { content: { formulaQuantityIs: 'dry', contentSource: 'in-process result', resultType: 'content' } };
     const { id } = await draft(doc);
     const checks = (await as('author', 'GET', `/api/master-versions/${id}/checks`)).json() as { problems: { message: string; question?: { key: string } }[] };
@@ -80,7 +80,7 @@ describe('master review and approval', () => {
     expect((await review(id, 'author')).refusals.submit).toBe('The master check shows 1 problem to fix or answer first (TC-01).');
     expect((await act('author', id, 'submit')).json().error).toBe('master_has_errors');
     // The answer is saved with the draft, kept in the master document and signed with it.
-    const answered = { ...doc, answers: { 'double-adjustment/mcc': { about: q.message, choice: 'intended', reason: 'Blend assay sets the tablet weight; dispensing uses the nominal potency' } } };
+    const answered = { ...doc, answers: { 'double-adjustment/mcc': { about: q.message, choice: 'intended', reason: 'Blend assay sets the capsule weight; dispensing uses the nominal potency' } } };
     expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: answered })).statusCode).toBe(200);
     expect((await review(id, 'author')).refusals.submit).toBeNull();
     expect((await act('author', id, 'submit')).statusCode).toBe(200);
@@ -93,7 +93,7 @@ describe('master review and approval', () => {
     expect((await act('author', id, 'submit')).statusCode).toBe(200);
     expect(await state(id)).toBe('in_review');
     // The version is locked while in review.
-    expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: placed(tablet()) })).statusCode).toBe(409);
+    expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: placed(capsule()) })).statusCode).toBe(409);
     expect((await review(id, 'checker')).actions).toEqual(['pass', 'return']);
     expect((await act('checker', id, 'pass')).statusCode).toBe(200);
     expect((await act('qachecker', id, 'pass')).json().error).toBe('already_checked');
@@ -104,7 +104,7 @@ describe('master review and approval', () => {
 
   it('TC-02 an author who edited a version cannot check it', async () => {
     const { id } = await draft();
-    expect((await as('author2', 'PUT', `/api/master-versions/${id}`, { doc: placed(tablet()) })).statusCode).toBe(200);
+    expect((await as('author2', 'PUT', `/api/master-versions/${id}`, { doc: placed(capsule()) })).statusCode).toBe(200);
     expect((await act('author', id, 'submit')).statusCode).toBe(200);
     expect((await act('author2', id, 'pass')).json().error).toBe('author_cannot_check');
   });
@@ -151,7 +151,7 @@ describe('master review and approval', () => {
     // A new version that changes nothing cannot be sent for review.
     expect((await review(v2, 'author')).refusals.submit).toBe('This version is the same as version 1: change what the new version is for, then send it for review.');
     expect((await act('author', v2, 'submit')).json()).toMatchObject({ error: 'no_changes' });
-    const doc = placed(tablet());
+    const doc = placed(capsule());
     doc.header.batchSize = '50000';
     expect((await as('author', 'PUT', `/api/master-versions/${v2}`, { doc })).statusCode).toBe(200);
     expect((await act('author', v2, 'submit')).statusCode).toBe(200);

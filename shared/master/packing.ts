@@ -1,6 +1,6 @@
 /**
  * Packing master checks (TrueBatch Capsules Packing, docs/rules.md TC-P1 to TC-P9): what a packing master must hold
- * before it can be approved. Each problem is an error. The tablet formula and calculation checks do not apply to it.
+ * before it can be approved. Each problem is an error. The capsule formula and calculation checks do not apply to it.
  */
 import { findBlock, GENERAL_BLOCKS } from '../blocks/index.js';
 import type { Problem } from './checks.js';
@@ -34,12 +34,12 @@ export function packingChecks(doc: MasterDoc): Problem[] {
   if (p.serialisation && !p.gtin) error('pack.gtin', 'Checking serialisation needs the pack GTIN', 'TC-P5');
   for (const x of steps) {
     const b = findBlock(x.t.block);
-    if (b && !b.packing && !GENERAL_BLOCKS.includes(b.id)) error(x.path, `${b.name} is a tablet manufacturing step: a packing master uses the packing steps`, 'TC-P1');
+    if (b && !b.packing && !GENERAL_BLOCKS.includes(b.id)) error(x.path, `${b.name} is a capsule manufacturing step: a packing master uses the packing steps`, 'TC-P1');
   }
 
   // TC-P2: the record starts from the released bulk batch.
-  if (doc.stages[0]?.steps[0]?.block.id !== 'bulk-issue') error('stages', 'The packing record starts with the bulk tablets issued to the line: it links the record to the released bulk batch', 'TC-P2');
-  of('bulk-issue').slice(1).forEach((x) => error(x.path, 'The bulk tablets are issued once, as the first step', 'TC-P2'));
+  if (doc.stages[0]?.steps[0]?.block.id !== 'bulk-issue') error('stages', 'The packing record starts with the bulk capsules issued to the line: it links the record to the released bulk batch', 'TC-P2');
+  of('bulk-issue').slice(1).forEach((x) => error(x.path, 'The bulk capsules are issued once, as the first step', 'TC-P2'));
 
   // TC-P3: line clearance before and after; strips and blisters formed, sealed and leak tested.
   const setup = of('line-setup')[0];
@@ -60,10 +60,10 @@ export function packingChecks(doc: MasterDoc): Problem[] {
   if (!of('coding-check').length) error('stages', 'The coding check (at the start and at intervals) is missing', 'TC-P5');
   if (!of('online-inspection').length) error('stages', 'The on-line inspection is missing', 'TC-P5');
 
-  // TC-P6: finished goods and tablets reconciled, every printed material reconciled from its own issue, coded
+  // TC-P6: finished goods and capsules reconciled, every printed material reconciled from its own issue, coded
   // leftovers destroyed; the checks alongside the line end before the reconciliation.
   const finish = of('finished-goods');
-  if (!finish.length) error('stages', 'The finished goods and reconciliation of tablets step is missing', 'TC-P6');
+  if (!finish.length) error('stages', 'The finished goods and reconciliation of capsules step is missing', 'TC-P6');
   if (p.materials.some((m) => m.coded) && !of('destruction').length) error('stages', 'Batch-coded leftovers need the destruction step', 'TC-P6');
   for (const x of of('printed-reconciliation')) {
     const r = refTo(x, 'issued');

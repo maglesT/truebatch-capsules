@@ -10,7 +10,7 @@
 -- material_use_v1: the quantity issued in the material's unit in master data, as read when the step was signed done
 -- (a count in e.g. nos; grams exactly in kg when master data counts the material in kg); step_name added.
 -- deviation_note_v1 (new): every deviation note (a late periodic check, a result out of limits), with the columns of
--- TrueBatch Capsules' view, so the Deviations system files them as it files tablets' notes.
+-- TrueBatch Capsules' view, so the Deviations system files them as it files capsules' notes.
 do $$
 declare
   rep text := case when current_schema() = 'public' then 'report' else current_schema() || '_report' end;

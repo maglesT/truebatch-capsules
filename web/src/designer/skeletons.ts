@@ -1,8 +1,8 @@
 // Process skeletons a new master may start from: the usual stages and steps of a process, as data. Settings that
 // depend on the product (which material a step weighs, its limits) are left for the author; the master check lists
-// them. Tablet-weight limits start at ± 5 % of the header's core weight. Every stage is worked in a room, so each
+// them. Tablet-weight limits start at ± 5 % of the header's fill weight. Every stage is worked in a room, so each
 // starts with line clearance (TC-10). A later stage's yield is on the actual input of the stage (the previous stage's
-// output), unless the stage adds materials (blending: on the core batch weight); the coating gain is on the batch's
+// output), unless the stage adds materials (blending: on the fill batch weight); the coating gain is on the batch's
 // actual core mean weight, and the granulation end point is checked by a second person. A new master names no
 // dispensing rooms: the author picks them (Header.tsx). A stage starts with the rooms it usually runs in, by the usual
 // area names; a stage whose rooms differ from plant to plant (a binder or coating suspension, blending) is left for
@@ -23,7 +23,7 @@ const weighStep = (key: string): StepPlan => ({ block: 'weigh', key });
 const compressStep: StepPlan = { block: 'compress', settings: (h) => ({
   meanLimit: { low: pct(h, h.fillWeightMg, '-5'), high: pct(h, h.fillWeightMg, '5'), unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0' }) };
 // TC-16: the tooling is checked before and after compression; friability and disintegration are tested on the cores;
-// the tablets are reconciled at the end.
+// the capsules are reconciled at the end.
 const tooling = (key: string, name: string): StepPlan => ({ block: 'punch-die-check', key, name });
 const reconcile: StepPlan = { block: 'tablet-reconciliation', key: 'yield', settings: () => ({ theoretical: { header: 'batchSize' },
   meanWeight: { ref: 'compression/compress/meanWeight' }, yieldLimit: { low: '97.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.0', high: '100.5', unit: '%' } }) };
@@ -32,7 +32,7 @@ const compression = [tooling('tooling-before', 'Punch and die check — before c
   tooling('tooling-after', 'Punch and die check — after compression'), reconcile];
 
 // Wet granulation: binder solution, granulation and drying, blending with the extragranular materials and the
-// lubricant, compression. Blending adds materials to the granules, so its yield is on the theoretical core batch weight
+// lubricant, compression. Blending adds materials to the granules, so its yield is on the theoretical fill batch weight
 // (the granules' output alone would leave out what the stage adds and read above 100 %; the master check refuses it).
 const WET: StagePlan[] = [
   { key: 'binder', name: 'Binder solution', kind: 'preparation', role: 'Granulation operator', produces: ['binder solution', 24],
@@ -49,10 +49,10 @@ const SKELETONS: { id: string; name: string; text: string; stages: StagePlan[] }
   {
     id: 'wet-granulation-film-coated', name: 'Wet granulation, film-coated',
     text: 'Binder solution, granulation and drying, lubrication, compression, coating suspension and film coating.',
-    stages: [...WET, wetCompression('core tablets'),
+    stages: [...WET, wetCompression('core capsules'),
       { key: 'suspension', name: 'Coating suspension', kind: 'preparation', role: 'Coating operator', produces: ['coating suspension', 24],
         steps: [weighStep('weigh-coating'), { block: 'coating-suspension' }] },
-      { key: 'coating', name: 'Film coating', role: 'Coating operator', rooms: ['Coating'], produces: ['coated tablets', 2160], uses: ['compression', 'suspension'],
+      { key: 'coating', name: 'Film coating', role: 'Coating operator', rooms: ['Coating'], produces: ['coated capsules', 2160], uses: ['compression', 'suspension'],
         steps: [{ block: 'spray-coat', key: 'coat', settings: () => ({ coreWeight: { ref: 'compression/compress/meanWeight' }, base: 'start' }) },
           { block: 'tablet-reconciliation', key: 'yield', settings: () => ({ theoretical: { ref: 'compression/yield/goodTablets' }, meanWeight: { ref: 'coating/coat/meanWeight' },
             yieldLimit: { low: '97.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.0', high: '100.5', unit: '%' } }) }] },
@@ -61,7 +61,7 @@ const SKELETONS: { id: string; name: string; text: string; stages: StagePlan[] }
   {
     id: 'wet-granulation-uncoated', name: 'Wet granulation, uncoated',
     text: 'Binder solution, granulation and drying, lubrication, then compression.',
-    stages: [...WET, wetCompression('bulk tablets')],
+    stages: [...WET, wetCompression('bulk capsules')],
   },
   {
     id: 'direct-compression-uncoated', name: 'Direct compression, uncoated',
@@ -69,7 +69,7 @@ const SKELETONS: { id: string; name: string; text: string; stages: StagePlan[] }
     stages: [
       { key: 'blending', name: 'Blending', role: 'Production operator', produces: ['blend', 72],
         steps: [weighStep('weigh'), { block: 'sift' }, { block: 'dry-mix', key: 'blend' }, yieldStep({ header: 'fillBatch' })] },
-      { key: 'compression', name: 'Compression', role: 'Compression operator', rooms: ['Compression'], produces: ['bulk tablets', 720], uses: ['blending'], steps: compression },
+      { key: 'compression', name: 'Compression', role: 'Compression operator', rooms: ['Compression'], produces: ['bulk capsules', 720], uses: ['blending'], steps: compression },
     ],
   },
 ];
@@ -92,9 +92,9 @@ export function skeletonStages(id: string, h: Header): Stage[] {
   }));
 }
 
-// TrueBatch Capsules Packing: the packing record for a pack and its materials. Issue to the line (the bulk tablets and
+// TrueBatch Capsules Packing: the packing record for a pack and its materials. Issue to the line (the bulk capsules and
 // each packing material); packing (line clearance, set-up, the camera and serial numbers when serialisation is
-// checked, then the periodic checks alongside the line); and the end (finished goods and tablets, every printed
+// checked, then the periodic checks alongside the line); and the end (finished goods and capsules, every printed
 // material, the serial numbers, destruction of coded leftovers, line clearance after). Limits that depend on the
 // product (sealing temperature, vacuum) are left for the author; the master check lists them.
 const packStep = (block: string, key?: string, settings: Record<string, SettingValue> = {}): Step => {

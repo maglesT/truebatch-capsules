@@ -6,7 +6,7 @@ import { batchRefusal, batchView, deviationText, fieldLabel, filedKey, handField
 import { batchRecordDoc } from '../server/batch-record.js';
 import { loadBatch, recordInput } from '../server/routes/batches.js';
 import { call, freshApp, handLabels, login, proofFor, seedUser, TEST_DATABASE_URL, type TestApp } from './helpers.js';
-import { at, ev, small, tablet, placed } from './engine-fixture.js';
+import { at, ev, small, capsule, placed } from './engine-fixture.js';
 import { inLogbook } from '../shared/engine/picks.js';
 
 // The links to Deviations, QMS, Logbook and MMS (owner 15 Nov 2026), each read through a fake provider schema in the
@@ -44,7 +44,7 @@ beforeAll(async () => {
       insert into ${S.qms}.change_v1 (number, status, title, products, qa_approved_at) values
         ('CC-2026-0001', 'implementation', 'New supplier of lactose', 'PRD-001', now()), ('CC-2026-0002', 'qa', 'Press speed', null, null),
         ('CC-2026-0003', 'rejected', 'Drop the coating', null, now()),
-        ('CC-2026-0004', 'implementation', 'Larger batch of paracetamol', 'FG-PCM500 Paracetamol 500 mg tablets', now()),
+        ('CC-2026-0004', 'implementation', 'Larger batch of paracetamol', 'FG-PCM500 Paracetamol 500 mg capsules', now()),
         ('CC-2026-0005', 'closure', 'New sifter screen', null, now());
       insert into ${S.lb}.equipment_status_v1 (master_id, code, kind, state, fit_for_use, blockers, warnings, in_use_batch, cleaned_at, cleaned_by, checked_at) values
         ('eq-str', 'STR-01', 'equipment', 'clean', true, '{}', '{"Use allowed under exception EXC-7"}', null, null, null, now()),
@@ -68,9 +68,9 @@ beforeAll(async () => {
     provider = connect(TEST_DATABASE_URL, { role: 'truebatch_capsules_app', link: true });
     return links({ deviations: provider, qms: provider, logbook: provider, mms: provider }, { deviations: S.dv, qms: S.qms, logbook: S.lb, mms: S.mms });
   });
-  t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated tablets'), strength: '100 mg', dosageForm: 'tablet' },
-    { ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
-  for (const l of tablet().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
+  t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated capsules'), strength: '100 mg', dosageForm: 'capsule' },
+    { ...item('p', 'P', 'P'), strength: null, dosageForm: 'capsule' });
+  for (const l of capsule().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
   t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
   t.master.equipment_.push(...['', '2', '3', '4', '5'].map((n) => ({ ...item(`eq-str${n}`, `STR-0${n || 1}`, 'Stirrer'), kind: 'equipment' as const, type: 'stirrer', room: 'GRN-01' })),
     { ...item('eq-bal', 'BAL-01', 'Balance 60 kg'), kind: 'instrument', type: 'balance', room: 'DSP-01' },
@@ -268,7 +268,7 @@ describe('TC-11 Logbook: equipment and rooms fit for use', () => {
 describe('TC-12 MMS: only released, in-date lots of the material; certificate values pulled', () => {
   let b: { id: number; batchNo: string };
   const granulation = () => {
-    const d = tablet();
+    const d = capsule();
     const g = d.stages[1]!;
     d.stages = [{ ...g, uses: [], steps: [g.steps[0]!, g.steps[2]!, g.steps[6]!] }];
     return d;
@@ -457,7 +457,7 @@ describe('TC-21 Deviations: the deviation number and its status come from the De
 
 describe('TC-02 QMS: a new master version needs a QA-approved change control', () => {
   const draft = async () => {
-    const { id } = (await as('author', 'POST', '/api/masters', { doc: placed(tablet()) })).json() as { id: number };
+    const { id } = (await as('author', 'POST', '/api/masters', { doc: placed(capsule()) })).json() as { id: number };
     const hash = async (who: string) => ((await as(who, 'GET', `/api/master-versions/${id}/review`)).json() as { contentHash: string }).contentHash;
     const review = async (who: string, action: string, extra: object = {}) =>
       as(who, 'POST', `/api/master-versions/${id}/${action}`, { proof: proofFor(who), contentHash: await hash(who), ...extra });
@@ -487,13 +487,13 @@ describe('TC-02 QMS: a new master version needs a QA-approved change control', (
     const picks = (await as('quality', 'GET', `/api/change-controls?version=${id}`)).json() as { changes: { number: string; names: string }[] };
     expect(picks.changes.map((c) => [c.number, c.names])).toEqual([['CC-2026-0005', 'none'], ['CC-2026-0001', 'yes']]);
     expect((await review('quality', 'approve', { changeControl: 'CC-2026-0004' })).json()).toMatchObject({ error: 'other_product',
-      message: 'CC-2026-0004 is for FG-PCM500 Paracetamol 500 mg tablets in QMS, not for PRD-001 Examplol 100 mg film-coated tablets: pick the change control of this product.' });
+      message: 'CC-2026-0004 is for FG-PCM500 Paracetamol 500 mg capsules in QMS, not for PRD-001 Examplol 100 mg film-coated capsules: pick the change control of this product.' });
     expect((await review('quality', 'approve', { changeControl: 'CC-2026-0005' })).statusCode).toBe(200);
     const [e] = await t.owner<{ payload: { source: { changeControl: { shown: string } } } }[]>`select payload from master_events where version_id = ${id} and kind = 'approved'`;
     expect(e!.payload.source.changeControl.shown).toMatch(/QMS names no product: QA checked that it covers PRD-001$/);
     const c = (products: string | null) => ({ number: 'CC', status: 'closed', title: null, qaApprovedAt: 'x', products });
-    const prd = { productCode: 'FG-ATV20', productName: 'Atorvastatin calcium tablets 20 mg' };
-    expect([c('fg-atv20, FG-ATV40'), c('ATORVASTATIN CALCIUM TABLETS 20 MG'), c('FG-ATV200'), c(' '), c(null)].map((x) => namesProduct(x, prd))).toEqual(['yes', 'yes', 'no', 'none', 'none']);
+    const prd = { productCode: 'FG-ATV20', productName: 'Atorvastatin calcium capsules 20 mg' };
+    expect([c('fg-atv20, FG-ATV40'), c('ATORVASTATIN CALCIUM CAPSULES 20 MG'), c('FG-ATV200'), c(' '), c(null)].map((x) => namesProduct(x, prd))).toEqual(['yes', 'yes', 'no', 'none', 'none']);
   });
 
   it('TC-02 QMS down: the number is typed, and another person makes the version effective', async () => {
@@ -566,14 +566,14 @@ describe('the views TrueBatch publishes', () => {
     expect(rows).toEqual([{ batch_number: 'MFG-NOT-STARTED', issued: '2026-10-30', manufactured_on: null }, { batch_number: 'MFG-STARTED', issued: '2026-10-30', manufactured_on: '2026-11-03' }]);
   });
 
-  it('batch_fact_v1 gives the batch\'s output (for OEE and packing): the good tablets and the yield of its tablet reconciliation, once that step is done; null before', async () => {
+  it('batch_fact_v1 gives the batch\'s output (for OEE and packing): the good capsules and the yield of its capsule reconciliation, once that step is done; null before', async () => {
     const [u] = await t.owner<{ id: number }[]>`select id::int from users order by id limit 1`;
-    // Only what the view reads of a master: a stage yield, then the tablet reconciliation (the batch's).
+    // Only what the view reads of a master: a stage yield, then the capsule reconciliation (the batch's).
     const doc = { header: { productCode: 'OUT', productName: 'Output' }, stages: [{ key: 'c', steps: [{ key: 'y', block: { id: 'stage-yield', version: 1 } },
       { key: 'r', block: { id: 'tablet-reconciliation', version: 1 } }] }] };
     const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(doc as never)}, ${u!.id}) returning id::int`;
     const [b] = await t.owner<{ id: number }[]>`insert into batches (batch_no, master_version_id, issued_by) values ('OUT-1', ${v!.id}, ${u!.id}) returning id::int`;
-    const res = (good: string, y: string) => ({ results: { goodTablets: { ok: true, value: good, unit: 'tablets', shown: '' }, yield: { ok: true, value: y, unit: '%', shown: '' },
+    const res = (good: string, y: string) => ({ results: { goodTablets: { ok: true, value: good, unit: 'capsules', shown: '' }, yield: { ok: true, value: y, unit: '%', shown: '' },
       accountability: { ok: false, message: 'not yet' } } });
     const add = (step: number, kind: string, payload: object) => t.owner`insert into step_events (batch_id, stage, sub, step, round, kind, payload, person_id)
       values (${b!.id}, 0, 1, ${step}, 1, ${kind}, ${t.owner.json(payload as never)}, ${u!.id})`;
@@ -582,16 +582,16 @@ describe('the views TrueBatch publishes', () => {
     await add(0, 'done', {});
     await add(1, 'value', res('198765.4', '99.382716'));
     // Recorded but not signed: not yet the batch's output.
-    expect(await out()).toEqual({ good_quantity: null, good_unit: 'tablets', yield_percent: null });
+    expect(await out()).toEqual({ good_quantity: null, good_unit: 'capsules', yield_percent: null });
     await add(1, 'done', {});
-    expect(await out()).toEqual({ good_quantity: '198765', good_unit: 'tablets', yield_percent: '99.38' });
+    expect(await out()).toEqual({ good_quantity: '198765', good_unit: 'capsules', yield_percent: '99.38' });
     // Sent back: null again until signed again; a correction after that gives the corrected figures.
     await add(1, 'sent_back', { reason: 'recount' });
     expect((await out())!.good_quantity).toBeNull();
     await add(1, 'value', res('197000', '98.5'));
     await add(1, 'done', {});
     await add(1, 'corrected', res('197500', '98.75'));
-    expect(await out()).toEqual({ good_quantity: '197500', good_unit: 'tablets', yield_percent: '98.75' });
+    expect(await out()).toEqual({ good_quantity: '197500', good_unit: 'capsules', yield_percent: '98.75' });
   });
 
   it('batch_fact_v1 names the product and gives the master version as its number', async () => {
@@ -602,7 +602,7 @@ describe('the views TrueBatch publishes', () => {
 
   it('material_use_v1 publishes what was dispensed, for MMS to reduce the lot\'s stock: lot, material, net quantity; a correction shows the corrected quantity', async () => {
     const [u] = await t.owner<{ id: number }[]>`select id::int from users order by id limit 1`;
-    const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(tablet() as never)}, ${u!.id}) returning id::int`;
+    const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(capsule() as never)}, ${u!.id}) returning id::int`;
     const [b] = await t.owner<{ id: number }[]>`insert into batches (batch_no, master_version_id, issued_by) values ('MAT-USE-1', ${v!.id}, ${u!.id}) returning id::int`;
     const net = (value: string) => ({ ok: true, value, unit: 'kg', shown: `${value} kg` });
     const e = (step: number, kind: string, payload: object, at: string) => t.owner`insert into step_events (batch_id, stage, sub, step, round, kind, payload, person_id, at)
@@ -624,7 +624,7 @@ describe('the views TrueBatch publishes', () => {
 
   it('material_use_v1 gives MMS the quantity in the material\'s unit in master data, read at signing: grams exactly in kg; without it, the step\'s unit', async () => {
     const [u] = await t.owner<{ id: number }[]>`select id::int from users order by id limit 1`;
-    const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(tablet() as never)}, ${u!.id}) returning id::int`;
+    const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(capsule() as never)}, ${u!.id}) returning id::int`;
     const [b] = await t.owner<{ id: number }[]>`insert into batches (batch_no, master_version_id, issued_by) values ('MAT-USE-2', ${v!.id}, ${u!.id}) returning id::int`;
     const e = (step: number, kind: string, payload: object) => t.owner`insert into step_events (batch_id, stage, sub, step, round, kind, payload, person_id)
       values (${b!.id}, 1, 1, ${step}, 1, ${kind}, ${t.owner.json(payload as never)}, ${u!.id})`;
@@ -642,7 +642,7 @@ describe('the views TrueBatch publishes', () => {
   it('equipment_use_v1: one use per batch and machine or room, open across the stages of the batch that name it or may run in its room; another batch, another use; a balance, none', async () => {
     const [u] = await t.owner<{ id: number }[]>`select id::int from users order by id limit 1`;
     // The binder preparation runs in RM-104; the granulation in the Granulation area, RM-104's area; the balance stands in dispensing.
-    const doc = tablet();
+    const doc = capsule();
     doc.stages[0]!.roomTypes = ['RM-104'];
     doc.stages[1]!.roomTypes = ['Granulation'];
     const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(doc as never)}, ${u!.id}) returning id::int`;
@@ -695,7 +695,7 @@ describe('the views TrueBatch publishes', () => {
   it('equipment_use_v1: a room or machine named only in line clearance steps was used by the stage: its step_name is the stage (17 Nov 2026 run, F3)', async () => {
     const [u] = await t.owner<{ id: number }[]>`select id::int from users order by id limit 1`;
     // Every stage starts with a line clearance (step 0); the binder preparation weighs in step 1.
-    const doc = placed(tablet());
+    const doc = placed(capsule());
     const [v] = await t.owner<{ id: number }[]>`insert into master_versions (version_no, doc, created_by) values (1, ${t.owner.json(doc as never)}, ${u!.id}) returning id::int`;
     const [b] = await t.owner<{ id: number }[]>`insert into batches (batch_no, master_version_id, issued_by) values ('EQ-USE-3', ${v!.id}, ${u!.id}) returning id::int`;
     const e = (stage: number, step: number, kind: string, payload: object, at: string) => t.owner`

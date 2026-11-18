@@ -64,7 +64,7 @@ export const BLOCKS: readonly Block[] = [
 ];
 // The blocks either product's masters may use besides its own.
 export const GENERAL_BLOCKS = ['check', 'qa-sample'];
-/** The blocks a master offers: a packing master's (it has a pack) or a tablet master's. */
+/** The blocks a master offers: a packing master's (it has a pack) or a capsule master's. */
 export const blocksFor = (packing: boolean) => BLOCKS.filter((b) => GENERAL_BLOCKS.includes(b.id) || !!b.packing === packing);
 
 export function findBlock(ref: { id: string; version: number }): Block | undefined {

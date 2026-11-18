@@ -14,7 +14,7 @@ import { TEMPLATES } from '../engine/templates.js';
 
 const name = z.string().regex(/^[a-z][a-zA-Z0-9]{0,39}$/);
 
-// bulk: a bulk tablet batch of TrueBatch Capsules (packing; pulled from its batch_fact_v1, server/pull.ts).
+// bulk: a bulk capsule batch of TrueBatch Capsules (packing; pulled from its batch_fact_v1, server/pull.ts).
 export const FIELD_KINDS = ['number', 'text', 'yes-no', 'choice', 'timer', 'lot', 'machine', 'room', 'bulk'] as const;
 export const fieldSchema = z.object({
   name,
@@ -22,7 +22,7 @@ export const fieldSchema = z.object({
   kind: z.enum(FIELD_KINDS),
   // number: the unit from the unit list, or "$setting" when the master step names it.
   unit: z.string().optional(),
-  // number: a list of exactly this many readings (e.g. 20 tablet weights).
+  // number: a list of exactly this many readings (e.g. 20 capsule weights).
   count: z.number().int().min(2).max(100).optional(),
   // choice: the fixed list.
   options: z.array(z.string().min(1)).optional(),
@@ -34,7 +34,7 @@ export const fieldSchema = z.object({
   types: z.array(z.string().regex(/^[a-z][a-z ]*$/)).optional(),
   notTypes: z.array(z.string().regex(/^[a-z][a-z ]*$/)).optional(),
 }).strict();
-// A packing line: master data's blister and strip packers, forming machines and bottle lines' tablet counters.
+// A packing line: master data's blister and strip packers, forming machines and bottle lines' capsule counters.
 export const PACKING_LINE = ['blister', 'strip pack', 'forming', 'tablet counter', 'packing line'];
 
 export const SETTING_KINDS = ['quantity', 'limit', 'number', 'text', 'material'] as const;
@@ -74,7 +74,7 @@ export const blockSchema = z.object({
   periodic: z.object({ maxMinutes: z.number().int().positive(), alongside: z.boolean().optional() }).strict().optional(),
   // Packing: the fields recorded when the batch is issued, as the first step of the record (TC-P2, TC-P7).
   atIssue: z.array(name).min(1).optional(),
-  // A block of TrueBatch Capsules Packing (a packing master uses these and the general ones; a tablet master never).
+  // A block of TrueBatch Capsules Packing (a packing master uses these and the general ones; a capsule master never).
   packing: z.boolean().optional(),
   // A new master step from this block starts as a QA hold (the master may change it).
   qaHold: z.boolean().optional(),
@@ -89,7 +89,7 @@ export type Block = z.infer<typeof blockSchema>;
 // Packing: "$pack.name" is the master's pack fact, "$batch.name" a batch fact recorded at issue, "$earlier.name" this
 // field in the earlier rounds of the step (shared/engine/values.ts).
 export const PACK_FACTS = ['unitsPerPack', 'packsPerCarton', 'shelfLifeMonths', 'expiryRule', 'type', 'destination', 'gtin', 'mrp'];
-export const BATCH_FACTS = ['line', 'bulk', 'mfgDate', 'tablets', 'packs'];
+export const BATCH_FACTS = ['line', 'bulk', 'mfgDate', 'capsules', 'packs'];
 
 /** The names inside "$name" strings of calculation arguments ("$name?" optional, "$prev.name" the previous round). */
 export function refsIn(x: unknown): string[] {
