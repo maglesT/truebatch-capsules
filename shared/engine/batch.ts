@@ -7,7 +7,7 @@ import { materialLines, type MasterDoc, type Step } from '../master/schema.js';
 import { keyId, stepState, type EventKind, type State, type StepEvent, type StepKey } from './state.js';
 import { c1WithinLimits, convert, Dec, findUnit } from '../templates/index.js';
 import { currentValues, durationId, durations, evaluate, failed, headerValue, inputChanges, type Current } from './values.js';
-import { CERTIFICATE, fieldLabel, handEntered, handFields } from './links.js';
+import { CERTIFICATE, fieldLabel, handEntered, handFields, isHand } from './links.js';
 
 export interface StepView extends Current {
   key: StepKey;
@@ -251,7 +251,10 @@ export function doneProblems(doc: MasterDoc, v: StepView, now: Date): string[] {
       prev = lot;
     }
     if (lotAt === undefined) continue;
-    for (const k of Object.keys(v.values).filter((x) => x.startsWith(`${lf.name}.`) || CERTIFICATE[x])) {
+    // A hand-typed lot's label answers are asked only while the lot is typed by hand; after a switch to an MMS lot they
+    // stay in the history but are not asked again (port of Tablets round 36). Certificate values always count.
+    const asked = isHand(v.source[lf.name]);
+    for (const k of Object.keys(v.values).filter((x) => (asked && x.startsWith(`${lf.name}.`)) || CERTIFICATE[x])) {
       const at = setAt(k);
       if (at !== undefined && at < lotAt) p.push(`${fieldLabel([...block.fields, ...handFields(block.fields, v.source)], k)} is the previous lot's: record it for lot ${String(v.values[lf.name])}`);
     }
