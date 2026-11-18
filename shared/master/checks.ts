@@ -115,9 +115,10 @@ export function masterChecks(doc: MasterDoc): Problem[] {
         const stopName = st.flow.stop ?? block.stop;
         const stopCalc = block.calcs.find((c) => c.name === stopName);
         if (!stopCalc) error(`${p}.flow`, 'A repeat-until step needs a stop check (a calculation of its block)');
-        // An optional setting ("$name?") the stop check reads, left unset: it is left out at run time, so the check never
-        // passes and the rounds end only at the most allowed (port of Tablets round 37).
-        else for (const [, name] of JSON.stringify(stopCalc.args).matchAll(/"\$([a-zA-Z0-9]+)\?"/g)) {
+        // A limit check (C1) on an optional setting ("$name?") left unset is left out at run time (values.ts), so it never
+        // passes and the rounds end only at the most allowed (port of Tablets rounds 37 and 37b). Other templates run
+        // without the optional value and can pass.
+        else if (stopCalc.template === 'C1') for (const [, name] of JSON.stringify({ value: (stopCalc.args as { value?: unknown }).value, limit: (stopCalc.args as { limit?: unknown }).limit }).matchAll(/"\$([a-zA-Z0-9]+)\?"/g)) {
           const setting = block.settings.find((x) => x.name === name);
           if (setting && st.settings[name!] === undefined) error(`${p}.flow`, `${stopCalc.label} stops the rounds, but ${setting.label} is not set, so it never passes: set it, or pick the check that stops the rounds under More options`);
         }
