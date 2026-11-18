@@ -1,7 +1,8 @@
 # TrueBatch Capsules
 
-An electronic batch record for tablet manufacturing, from dispensing to QA release of bulk tablets, on the Medhanta
-platform. Built the way the Medhanta Logbook is built: one app, plain SQL, a small set of rules checked once in the app.
+An electronic batch record for capsule manufacturing (hard gelatin, HPMC and soft gel capsules), from dispensing to QA
+release of bulk filled capsules, on the Medhanta platform. It starts as a copy of TrueBatch Tablets (same engine,
+screens and templates); capsule blocks, skeletons and rule changes follow in later rounds. Built the way the Medhanta Logbook is built: one app, plain SQL, a small set of rules checked once in the app.
 
 - Design decisions: `docs/design.md`
 - The TrueBatch rules and their tests: `docs/rules.md`
