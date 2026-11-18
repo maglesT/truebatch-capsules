@@ -112,7 +112,8 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       for (const c of block.calcs) { const r = now[c.name]; if (r && !r.ok) error(p, `${c.label}: ${r.message}`); }
       if (st.flow.kind === 'repeat-until') {
         if (!st.flow.maxRounds) error(`${p}.flow`, 'A repeat-until step needs the most rounds allowed');
-        const stopCalc = block.calcs.find((c) => c.name === (st.flow.stop ?? block.stop));
+        const stopName = st.flow.stop ?? block.stop;
+        const stopCalc = block.calcs.find((c) => c.name === stopName);
         if (!stopCalc) error(`${p}.flow`, 'A repeat-until step needs a stop check (a calculation of its block)');
         // An optional setting ("$name?") the stop check reads, left unset: it is left out at run time, so the check never
         // passes and the rounds end only at the most allowed (port of Tablets round 37).
