@@ -138,6 +138,26 @@ function refValue(doc: MasterDoc, events: readonly StepEvent[], here: StepKey, r
   return name in c.values ? c.values[name] : c.results[name] ? asQ(c.results[name]) : undefined;
 }
 
+/** A quantity written with a unit of the unit list ("20 mg", "10 mEq", "60000 IU"); the master checks read it the same way. */
+export const QUANTITY = /^[+-]?(\d+(\.\d*)?|\.\d+)\s*(\S.*)?$/;
+function quantityOf(text: string | undefined): { value: string; unit: string } | undefined {
+  const m = QUANTITY.exec(text?.trim() ?? '');
+  const u = m && findUnit(m[3] ?? '');
+  return m && u ? { value: m[1]!, unit: u.symbol } : undefined;
+}
+
+/**
+ * The field of a formula line a block setting reads (shared/blocks/format.ts formulaField): its label claim per capsule
+ * as written, never its batch quantity. Refused when the line has none (the master check refuses it first).
+ */
+export function lineField(line: FormulaLine, field: 'labelClaim', label: string): Stored {
+  const text = line[field];
+  if (!text) return { ok: false, message: `The ${label.toLowerCase()} points at ${line.name}, which has no label claim: enter it on the formula line` };
+  const q = quantityOf(text);
+  if (!q) return { ok: false, message: `The label claim "${text}" of ${line.name} is not a quantity with a unit, e.g. "20 mg"` };
+  return { ok: true, value: q.value, unit: q.unit, shown: `${q.value} ${q.unit}, the label claim of ${line.name} (formula line)` };
+}
+
 const capsules = (doc: MasterDoc) => `${doc.header.batchSize} capsules`;
 const perBatch = (mg: string, doc: MasterDoc) => callTemplate('T8', { mode: 'per unit', perUnit: `${mg} mg`, count: capsules(doc), unit: 'kg' });
 
@@ -246,14 +266,15 @@ export function evaluate(doc: MasterDoc, events: readonly StepEvent[], key: Step
     if ('formula' in v) {
       const line = doc.formula.find((l) => l.key === v.formula);
       if (s.kind === 'material' || !line) continue;
-      results[s.name] = lineQuantity(doc, events, key, line, v.adjusted ?? false, values, uses);
+      results[s.name] = s.formulaField ? lineField(line, s.formulaField, s.label) : lineQuantity(doc, events, key, line, v.adjusted ?? false, values, uses);
     } else {
       const h = headerValue(doc, v.header);
       if (typeof h === 'string') { inputs[s.name] = h; continue; }
       results[s.name] = h;
     }
     const r = results[s.name]!;
-    if (r.ok) { inputs[s.name] = asQ(r); asResults[s.name] = { ok: true, value: new Dec(r.value), unit: r.unit }; }
+    // A line's field is passed on as written ("50 mg"); a worked-out quantity with its full value.
+    if (r.ok) { inputs[s.name] = s.formulaField ? { value: r.value, unit: r.unit } : asQ(r); asResults[s.name] = { ok: true, value: new Dec(r.value), unit: r.unit }; }
   }
   for (const c of block.calcs) {
     // A limit check of an optional value that was not given, or against an optional limit the master did not set,

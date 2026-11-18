@@ -48,6 +48,14 @@ export const move = <T,>(list: T[], i: number, by: -1 | 1): T[] => {
 
 const CHECKS = /^(C\d|F2)$/;
 
+/**
+ * The formula lines a label claim per capsule is picked from (a setting with formulaField): the lines with a label claim,
+ * the API first, and the line already picked (so one without a claim still shows, and the master check names it).
+ */
+export function labelClaimLines(doc: MasterDoc, picked?: string): MasterDoc['formula'] {
+  return doc.formula.filter((l) => l.labelClaim || l.key === picked).sort((a, b) => Number(b.role === 'api') - Number(a.role === 'api'));
+}
+
 export interface RefOption { ref: string; label: string; kind: Kind | undefined }
 /** Earlier steps' recorded numbers and worked-out values this step may use (same rules as the master check). */
 export function earlierRefs(doc: MasterDoc, si: number, ti: number): RefOption[] {

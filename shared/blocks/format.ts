@@ -45,6 +45,10 @@ export const settingSchema = z.object({
   // text: the fixed list the master picks from.
   options: z.array(z.string().min(1)).optional(),
   optional: z.boolean().optional(),
+  // quantity: a formula line picked for this setting gives this field of the line, not its batch quantity. Only
+  // 'labelClaim': the line's label claim per capsule as written ("50 mg"), for a value per capsule (T14's label claim).
+  // Such a setting is a typed value or a line's label claim; a header value or an earlier step is refused (checks.ts).
+  formulaField: z.enum(['labelClaim']).optional(),
 }).strict();
 
 export const calcSchema = z.object({
@@ -119,6 +123,7 @@ export function blockProblems(b: Block): string[] {
     if (f.kind === 'choice' && !f.options?.length) p.push(`field ${f.name}: a choice needs options`);
   }
   for (const s of b.settings) if (s.options && (s.kind !== 'text' || !s.options.length)) p.push(`setting ${s.name}: only a text setting has a list`);
+  for (const s of b.settings) if (s.formulaField && s.kind !== 'quantity') p.push(`setting ${s.name}: only a quantity setting reads a field of a formula line`);
   const known = new Set([...b.fields.map((f) => f.name), ...b.settings.map((s) => s.name), ...PACK_FACTS.map((x) => `pack.${x}`), ...BATCH_FACTS.map((x) => `batch.${x}`)]);
   for (const f of b.atIssue ?? []) if (!b.fields.some((x) => x.name === f)) p.push(`atIssue: no field ${f}`);
   const roundNames = new Set([...b.fields.map((f) => f.name), ...b.calcs.map((c) => c.name)]);

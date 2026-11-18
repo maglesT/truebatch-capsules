@@ -15,7 +15,8 @@ export const limitSchema = z.object({
 }).strict();
 
 // A step setting: a value as written ("0.5", "250.0 mg"), a limit, or a reference to an earlier step's field or
-// calculation ("stage/step/name"), to a formula line (its batch quantity, adjusted when asked) or to the header.
+// calculation ("stage/step/name"), to a formula line (its batch quantity, adjusted when asked; or its label claim, for a
+// block setting with formulaField) or to the header.
 // fillWeight: the fill per capsule; shellWeight: the mean empty shell (hard) or the wet gel mass per capsule (soft gel);
 // filledWeight: fill + shell, the theoretical weight of one filled capsule (gross fill-weight target, counts by weight).
 export const HEADER_VALUES = ['batchSize', 'fillWeight', 'coatedWeight', 'fillBatch', 'coatedBatch', 'shellWeight', 'filledWeight'] as const;
@@ -96,7 +97,8 @@ export const lineSchema = z.object({
   // lines of a soft gel (gelatin, plasticiser, water, colour); they add up to the header's shellWeightMg.
   place: z.enum(['intragranular', 'extragranular', 'binder', 'coating', 'shell']),
   layer: z.number().int().min(1).max(10).optional(),
-  // The API's label claim per capsule ("20 mg", "10 mEq"), on the basis the label-basis answer gives; checked, never used.
+  // The API's label claim per capsule ("20 mg", "10 mEq", "60000 IU"), on the basis the label-basis answer gives; checked
+  // against the mg per capsule, and used only by a block setting that reads it (uniformity by weight, T14).
   labelClaim: text(40).optional(),
   // A batch quantity as written in the source ("120.000 kg"); only checked against mg per capsule × batch size (T8).
   batchQuantity: text(40).optional(),

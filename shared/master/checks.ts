@@ -6,10 +6,10 @@
 import { findBlock, type Block } from '../blocks/index.js';
 import { Dec, c1WithinLimits, findUnit, t10Compensating, t11SaltFactor, t2Total, t8BatchScaling, type Q } from '../templates/index.js';
 import { decimalsOf } from '../templates/core.js';
-import { evaluate, lineQuantity } from '../engine/values.js';
+import { evaluate, lineField, lineQuantity, QUANTITY } from '../engine/values.js';
 import { materialLines, type Answer, type FormulaLine, type Limit, type MasterDoc, type SettingValue } from './schema.js';
 import { packingChecks } from './packing.js';
-import { unitKindProblem } from './kinds.js';
+import { neededKind, unitKindProblem } from './kinds.js';
 import { isBalance } from '../engine/picks.js';
 
 /** A warning the author answers: one of the options, with a reason when `needsReason`. */
@@ -28,7 +28,6 @@ export const plainWords = (m: string) => m
 /** What stops "Send for review" and approval: an error, or a warning that needs an answer and has none. */
 export const blocking = (p: Problem) => p.level === 'error' || (p.question !== undefined && !p.question.answer);
 
-const QUANTITY = /^[+-]?(\d+(\.\d*)?|\.\d+)\s*(\S.*)?$/;
 const DECIMAL = /^\d+(\.\d+)?$/;
 // Neutral certificate values for checking a formula line's adjustment settings with the templates themselves.
 const SAMPLE = { assay: { value: '100.0', unit: '%' }, water: { value: '0', unit: '%' }, lod: { value: '0', unit: '%' } };
@@ -82,7 +81,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       for (const [name, v] of Object.entries(st.settings)) {
         const bs = block.settings.find((x) => x.name === name);
         const listed = !bs?.options || (typeof v === 'string' && bs.options.includes(v));
-        const why = !bs ? `The block ${block.name} has no setting ${name}` : listed ? settingProblem(doc, si, ti, bs.kind, v) : `${bs.label}: choose one of ${bs.options!.join(', ')}`;
+        const why = !bs ? `The block ${block.name} has no setting ${name}` : listed ? settingProblem(doc, si, ti, block, bs, st.settings, v) : `${bs.label}: choose one of ${bs.options!.join(', ')}`;
         if (why) error(`${p}.settings.${name}`, why);
         // TC-01: a limit (or a typed target) in a unit of another kind than the value it checks.
         const unit = typeof v === 'object' && 'unit' in v ? v.unit : typeof v === 'string' && bs?.kind === 'quantity' ? QUANTITY.exec(v)?.[3] : undefined;
@@ -102,7 +101,9 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       const base = block.id === 'stage-yield' ? st.settings.theoretical : undefined;
       const from = base && typeof base === 'object' && 'ref' in base ? doc.stages.find((x) => x.key === base.ref.split('/')[0]) : undefined;
       if (from && from !== s && !doc.pack) {
-        const added = [...new Set(s.steps.flatMap((x) => Object.values(x.settings)).flatMap((v) => (typeof v === 'object' && 'formula' in v ? [v.formula] : [])))]
+        // A setting that reads a line's label claim (formulaField) adds nothing.
+        const reads = (x: (typeof s.steps)[number], n: string) => !!findBlock(x.block)?.settings.find((b) => b.name === n)?.formulaField;
+        const added = [...new Set(s.steps.flatMap((x) => Object.entries(x.settings).filter(([n]) => !reads(x, n)).map(([, v]) => v)).flatMap((v) => (typeof v === 'object' && 'formula' in v ? [v.formula] : [])))]
           .map((k) => doc.formula.find((l) => l.key === k)?.name).filter((n): n is string => !!n);
         if (added.length) error(`${p}.settings.theoretical`, `The yield of ${s.name} is worked out on the output of ${from.name} only, but ${s.name} adds ${added.join(' and ')}: the yield would read above 100 %. Take the theoretical fill batch weight (or a quantity that includes what this stage adds) as the theoretical quantity`);
       }
@@ -350,8 +351,10 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
     const q = quantityOf(claim);
     const salt = l.adjust?.salt;
     const form = salt?.from.name || l.name;
-    if (!q || (q.u.kind !== 'mass' && q.u.kind !== 'charge')) return void refuse(path, `"${claim}" is not a label claim with a unit, e.g. "20 mg" or "10 mEq"`);
+    if (!q || (q.u.kind !== 'mass' && q.u.kind !== 'charge' && q.u.kind !== 'IU')) return void refuse(path, `"${claim}" is not a label claim with a unit, e.g. "20 mg", "10 mEq" or "60000 IU"`);
     let expected: Dec | undefined;
+    // A claim in IU (vitamin D3 60000 IU) has no mass to compare with the mg per capsule: the lot's content gives it (T18).
+    if (q.u.kind === 'IU') return;
     if (q.u.kind === 'charge') {
       if (!salt?.from.charge) return void refuse(path, `The label claim ${claim} is in mEq: give the salt form from the ion with its charge from the material record (F0393: 10 mEq K read as mmol of the salt is 3 times the potassium)`);
       expected = q.v.div(salt.from.charge).times(salt.from.mw);
@@ -367,12 +370,30 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
 }
 
 /** Whether a step setting fits its kind, and a reference points at something earlier that exists. */
-function settingProblem(doc: MasterDoc, si: number, ti: number, kind: Block['settings'][number]['kind'], v: SettingValue): string | null {
+function settingProblem(doc: MasterDoc, si: number, ti: number, block: Block, bs: Block['settings'][number], settings: Record<string, SettingValue>, v: SettingValue): string | null {
+  const kind = bs.kind;
+  // A value per capsule read from a formula line (the label claim, shared/blocks/format.ts formulaField): typed, or the
+  // line's own field; a header value or an earlier step is not a label claim, nor is a line's batch quantity adjusted.
+  if (bs.formulaField && typeof v === 'object' && !('unit' in v)) {
+    if (!('formula' in v)) return `${bs.label}: pick the label claim of a formula line, or type it; ${'header' in v ? 'a header value' : 'an earlier step'} is not a label claim per capsule`;
+    const line = doc.formula.find((l) => l.key === v.formula);
+    if (!line) return `No formula line ${v.formula}`;
+    if (v.adjusted) return `${bs.label}: the label claim of ${line.name} is never adjusted for the lot`;
+    const r = lineField(line, bs.formulaField, bs.label);
+    if (!r.ok) return r.message;
+    const need = neededKind(block, bs.name, settings);
+    const has = findUnit(r.unit)?.kind;
+    return need && has !== need ? `${bs.label}: the label claim of ${line.name} is ${line.labelClaim}, but this step needs a ${need} per capsule` : null;
+  }
   if (typeof v === 'string') {
     if (kind === 'number') return DECIMAL.test(v) ? null : `"${v}" is not a plain decimal`;
     if (kind === 'quantity') {
       const m = QUANTITY.exec(v);
-      return m && findUnit(m[3] ?? '') ? null : `"${v}" is not a number with a unit from the unit list`;
+      const u = m && findUnit(m[3] ?? '');
+      if (!u) return `"${v}" is not a number with a unit from the unit list`;
+      // A label claim typed in a unit of another kind (60000 IU where T14 needs a mass) would be refused at batch time.
+      const need = bs.formulaField ? neededKind(block, bs.name, settings) : undefined;
+      return need && u.kind !== need ? `${bs.label}: ${v} is not a ${need} per capsule, which this step needs` : null;
     }
     return kind === 'text' ? null : `A ${kind} cannot be written as text`;
   }
