@@ -3,29 +3,23 @@ import { BLOCKS } from '../shared/blocks/index.js';
 import { masterChecks } from '../shared/master/checks.js';
 import { small, unplaced } from './engine-fixture.js';
 
-// Port of Tablets round 37: a repeat-until step whose stop check reads an optional setting ("$name?") the master left
-// unset never passes (the setting is left out at run time), so its rounds end only at the most allowed.
+// Port of Tablets rounds 37 and 37b: a repeat-until step whose stop check is a limit check (C1) on an optional setting
+// ("$name?") the master left unset never passes (the engine leaves such a C1 out), so its rounds end only at the most
+// allowed. Other templates run without the optional value and can pass.
 
-const optionalOfStop = () => BLOCKS.filter((b) => b.stop).flatMap((b) => {
-  const c = b.calcs.find((x) => x.name === b.stop)!;
-  return [...JSON.stringify(c.args).matchAll(/"\$([a-zA-Z0-9]+)\?"/g)].map((m) => m[1]!).filter((n) => b.settings.some((s) => s.name === n)).map((n) => `${b.id}.${n}`);
-});
+const optionalOfC1 = () => BLOCKS.flatMap((b) => b.calcs.filter((c) => c.template === 'C1').flatMap((c) => {
+  const a = c.args as { value?: unknown; limit?: unknown };
+  return [...JSON.stringify({ value: a.value, limit: a.limit }).matchAll(/"\$([a-zA-Z0-9]+)\?"/g)].map((m) => `${b.id}.${c.name}.${m[1]}`);
+}));
 
 describe('a stop check reading an optional setting', () => {
-  it('the blocks whose stop check reads an optional setting (guard: a new one is looked at)', () => {
-    expect(optionalOfStop()).toEqual([]);
+  it('guard: no shipped limit check (C1) has an optional value or limit', () => {
+    expect(optionalOfC1()).toEqual([]);
   });
 
-  const errors = (settings: Record<string, unknown>, stop = 'carr') => unplaced(masterChecks(small([{ steps: [{ block: { id: 'density-flow', version: 1 }, settings,
-    flow: { kind: 'repeat-until', maxRounds: 5, stop } }] }]))).filter((p) => p.level === 'error').map((p) => p.message);
-  const LIMIT = { low: '0', high: '15', unit: '%' };
-
-  it('the master refuses a stop check whose optional setting is not set', () => {
-    expect(errors({})).toContain('Carr index stops the rounds, but Carr index limits is not set, so it never passes: set it, or pick the check that stops the rounds under More options');
-  });
-
-  it('set, it passes; an optional setting of another calculation may stay unset', () => {
-    expect(errors({ carrLimit: LIMIT }).filter((m) => m.includes('stops the rounds'))).toEqual([]);
-    expect(errors({ carrLimit: LIMIT }).filter((m) => /Hausner|repose/.test(m))).toEqual([]);
+  it('another template (Carr index, T6) as the stop check, its optional limit unset: not refused (it runs without it)', () => {
+    const errors = unplaced(masterChecks(small([{ steps: [{ block: { id: 'density-flow', version: 1 }, settings: {},
+      flow: { kind: 'repeat-until', maxRounds: 5, stop: 'carr' } }] }]))).filter((p) => p.level === 'error').map((p) => p.message);
+    expect(errors.filter((m) => m.includes('stops the rounds'))).toEqual([]);
   });
 });
