@@ -1,5 +1,5 @@
-// Starts TrueBatch Tablets Packing with its built UI on a fresh schema of the test database, for its browser journey,
-// with a stand-in for TrueBatch Tablets' batch_fact_v1 (two released bulk batches, with their good tablets). Master data is an in-memory stand-in.
+// Starts TrueBatch Capsules Packing with its built UI on a fresh schema of the test database, for its browser journey,
+// with a stand-in for TrueBatch Capsules' batch_fact_v1 (two released bulk batches, with their good tablets). Master data is an in-memory stand-in.
 // The Logbook's equipment_status_v1 is stood in too, knowing line BL-01 only (dirty); its link is down (no grant) until
 // the journey grants it for its pick-list check (e2e/packing.spec.ts).
 import { connect } from '../server/db.js';
@@ -48,6 +48,6 @@ master.rooms_.splice(0, master.rooms_.length, { ...item('rm-pk1', 'PK-01', 'Pack
 
 const sql = connect(TEST_DATABASE_URL, { role: PACKING_APP_ROLE, searchPath: S });
 const bulk = connect(TEST_DATABASE_URL, { role: PACKING_APP_ROLE, link: true });
-const app = await buildApp({ sql, signOn: fakeSignOn(), proofKey: TEST_PROOF_KEY, master, links: links({ truebatch: bulk, logbook: bulk }, { truebatch: `${S}_tb`, logbook: `${S}_lb` }),
+const app = await buildApp({ sql, signOn: fakeSignOn(), proofKey: TEST_PROOF_KEY, master, links: links({ truebatch_capsules: bulk, logbook: bulk }, { truebatch_capsules: `${S}_tb`, logbook: `${S}_lb` }),
   webRoot: new URL('../dist/packing-web', import.meta.url).pathname, cookieSecure: false, product: PACKING });
 await app.listen({ port: E2E_PACKING_PORT, host: '127.0.0.1' });

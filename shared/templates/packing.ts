@@ -1,6 +1,6 @@
 /**
- * Packing templates (TrueBatch Tablets Packing): T27 expiry from the shelf life (TB-P8), C8 printed data against the
- * batch data (TB-P5, TB-P9) and C9 codes of the customer's serialisation system read from sample packs. Dates are
+ * Packing templates (TrueBatch Capsules Packing): T27 expiry from the shelf life (TC-P8), C8 printed data against the
+ * batch data (TC-P5, TC-P9) and C9 codes of the customer's serialisation system read from sample packs. Dates are
  * plain text (YYYY-MM-DD); a printed date is a month.
  */
 import { Dec } from './dec.js';
@@ -31,7 +31,7 @@ export function expiryMonth(manufactured: string, months: string, rule: Rule = '
 // ---------------------------------------------------------------- T27 Expiry from the shelf life
 export interface T27Input { readonly manufactured: string; readonly months: string; readonly rule?: Rule }
 
-/** T27 Expiry from the approved shelf life (TB-P8): never typed. */
+/** T27 Expiry from the approved shelf life (TC-P8): never typed. */
 export function t27Expiry(i: T27Input): Outcome<{ readonly expiry: string; readonly manufactured: string }> {
   return run(() => {
     const expiry = expiryMonth(i.manufactured, i.months, i.rule);
@@ -68,7 +68,7 @@ export type C8Input = { readonly what: string; readonly printed: string } & (
   | { readonly kind: 'expiry'; readonly manufactured: string; readonly months: string; readonly rule?: Rule }
   | { readonly kind: 'money'; readonly expected?: string });
 
-/** C8 Printed data (batch number, dates, MRP) as read from the pack, against the batch record (TB-P9). */
+/** C8 Printed data (batch number, dates, MRP) as read from the pack, against the batch record (TC-P9). */
 export function c8PrintedData(i: C8Input): Outcome {
   return run(() => {
     const printed = typeof i.printed === 'string' ? i.printed.trim() : refuse(`${i.what}: the printed text is missing`);

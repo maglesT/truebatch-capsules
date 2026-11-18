@@ -108,7 +108,7 @@ describe('the sweep: no template crashes on any block or test master', () => {
   it.each(BLOCKS.map((b) => [b.id, b] as const))('%s: all its settings set, its fields filled, required only or all, in two rounds', (id, b) => {
     expect(Object.keys(SETTINGS[id] ?? {}).sort()).toEqual(b.settings.map((s) => s.name).sort());
     for (const all of [false, true]) expect(crashes(using(b), all)).toEqual([]);
-    // Its limits and targets are of the kinds of the values they check (TB-01).
+    // Its limits and targets are of the kinds of the values they check (TC-01).
     expect(masterChecks(using(b)).filter((p) => /every reading would be refused/.test(p.message))).toEqual([]);
   });
 

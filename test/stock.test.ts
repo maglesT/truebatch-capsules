@@ -16,7 +16,7 @@ let provider: Sql;
 let MMS = '';
 const cookies: Record<string, string> = {};
 const item = (itemId: string, c: string, name: string) => ({ itemId, code: c, name, version: 1, active: true });
-const P = (...codes: string[]) => codes.map((c) => `truebatch_packing.${c}` as const);
+const P = (...codes: string[]) => codes.map((c) => `truebatch_capsules_packing.${c}` as const);
 
 beforeAll(async () => {
   t = await freshApp(async (db) => {
@@ -53,7 +53,7 @@ afterAll(async () => {
 const as = (who: string, method: 'GET' | 'POST', url: string, body?: object) => call(t.app, cookies[who]!, method, url, body);
 type Detail = { steps: { id: string; actions: string[]; contentHash: string }[] };
 const hash = async (id: number, key: string) => ((await as('op1', 'GET', `/api/batches/${id}`)).json() as Detail).steps.find((s) => s.id === key)!.contentHash;
-// A packing batch on its own line, the bulk typed from its labels (no TrueBatch Tablets link here), its bulk received.
+// A packing batch on its own line, the bulk typed from its labels (no TrueBatch Capsules link here), its bulk received.
 async function batch(line: string) {
   const res = await as('author', 'POST', '/api/masters', { doc: master() });
   const mv = (res.json() as { id: number }).id;
@@ -82,19 +82,19 @@ describe('a packing material lot is not issued beyond what MMS shows available',
     for (const id of [first, second]) { const r = await as('op1', 'POST', `/api/batches/${id}/steps/${CARTON}/start`); expect(r.statusCode, r.body).toBe(200); }
   });
 
-  it('TB-P4 a quantity within MMS\'s stock is issued; one above it is refused, with what MMS has and what is already used', async () => {
+  it('TC-P4 a quantity within MMS\'s stock is issued; one above it is refused, with what MMS has and what is already used', async () => {
     const over = await record(first, { lot: 'CTN-1', issued: '1200', matches: 'yes' });
     expect(over.statusCode).toBe(409);
-    expect(over.json()).toMatchObject({ problems: ['Lot CTN-1 has 1000 nos available in MMS (1000 nos in stock less 0 nos already used in TrueBatch Tablets Packing): '
+    expect(over.json()).toMatchObject({ problems: ['Lot CTN-1 has 1000 nos available in MMS (1000 nos in stock less 0 nos already used in TrueBatch Capsules Packing): '
       + '1200 nos cannot be taken from it. Take at most 1000 nos, or another lot.'] });
     expect((await record(first, { lot: 'CTN-1', issued: '600', matches: 'yes' })).statusCode).toBe(200);
     const done = await as('op1', 'POST', `/api/batches/${first}/steps/${CARTON}/done`, { proof: proofFor('op1'), contentHash: await hash(first, CARTON) });
     expect(done.statusCode, done.body).toBe(200);
   });
 
-  it('TB-P4 what packing already used of the lot is taken off; a step\'s own quantity is not counted twice', async () => {
+  it('TC-P4 what packing already used of the lot is taken off; a step\'s own quantity is not counted twice', async () => {
     expect((await record(second, { lot: 'CTN-1', issued: '500', matches: 'yes' })).json()).toMatchObject({ problems: [
-      'Lot CTN-1 has 400 nos available in MMS (1000 nos in stock less 600 nos already used in TrueBatch Tablets Packing): 500 nos cannot be taken from it. Take at most 400 nos, or another lot.'] });
+      'Lot CTN-1 has 400 nos available in MMS (1000 nos in stock less 600 nos already used in TrueBatch Capsules Packing): 500 nos cannot be taken from it. Take at most 400 nos, or another lot.'] });
     expect((await record(second, { lot: 'CTN-1', issued: '400', matches: 'yes' })).statusCode).toBe(200);
     // Typing the quantity again counts it once: still within the stock.
     expect((await record(second, { issued: '400' })).statusCode).toBe(200);
@@ -105,7 +105,7 @@ describe('a packing material lot is not issued beyond what MMS shows available',
     await t.owner.unsafe(`update ${MMS}.lot_v1 set stock = 1000 where lot_number = 'CTN-1'`);
   });
 
-  it('TB-P4 MMS down, or an MMS whose lot_v1 gives no stock yet: nothing is compared, as before', async () => {
+  it('TC-P4 MMS down, or an MMS whose lot_v1 gives no stock yet: nothing is compared, as before', async () => {
     // A lot without stock in MMS's view.
     expect((await record(second, { lot: 'CTN-OLD', issued: '5000', matches: 'yes' })).statusCode).toBe(200);
     await t.owner.unsafe(`revoke select on all tables in schema ${MMS} from ${PACKING_APP_ROLE}`);
@@ -116,7 +116,7 @@ describe('a packing material lot is not issued beyond what MMS shows available',
     }
   });
 
-  it('TB-21 what a terminated batch gave back to stores is available again (owner, 16 Nov 2026)', async () => {
+  it('TC-21 what a terminated batch gave back to stores is available again (owner, 16 Nov 2026)', async () => {
     const b = (await as('qa1', 'GET', `/api/batches/${first}`)).json() as { batch: { contentHash: string; issued: object[] } };
     // The bulk tablets issued to it first (what went back of them can be issued again: bulkLeft), then its lots.
     expect(b.batch.issued).toEqual([{ lot: 'TB260001', material: 'bulk PRD-001 · Examplol 100 mg tablets', value: '100000', unit: 'tablets' },

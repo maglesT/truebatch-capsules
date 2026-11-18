@@ -1,4 +1,4 @@
-# TrueBatch Tablets Packing: the same repository and server as TrueBatch Tablets, started as the packing product with
+# TrueBatch Capsules Packing: the same repository and server as TrueBatch Capsules, started as the packing product with
 # its own web UI and its own database (packing/migrate.ts).
 FROM node:22-alpine AS build
 WORKDIR /app

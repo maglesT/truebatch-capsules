@@ -1,4 +1,4 @@
-// TrueBatch Tablets Packing's web entry: the shared screens of web/src as the packing product.
+// TrueBatch Capsules Packing's web entry: the shared screens of web/src as the packing product.
 import './product.js';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

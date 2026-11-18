@@ -1,5 +1,5 @@
-// TrueBatch Tablets (packing/server/index.ts starts TrueBatch Tablets Packing).
+// TrueBatch Capsules (packing/server/index.ts starts TrueBatch Capsules Packing).
 import { start } from './start.js';
-import { TABLETS } from './product.js';
+import { CAPSULES } from './product.js';
 
-await start(TABLETS);
+await start(CAPSULES);

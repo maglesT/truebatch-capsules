@@ -5,9 +5,9 @@ import { TEST_DATABASE_URL } from '../test/helpers.js';
 import { E2E_PACKING_PORT, E2E_PACKING_SCHEMA } from './config.js';
 import { clearOfActionBar, justAboveActionBar, logIn, wholeOnScreen } from './helpers.js';
 
-// TrueBatch Tablets Packing in the browser: a packing master built in the designer from the packing skeleton (its
+// TrueBatch Capsules Packing in the browser: a packing master built in the designer from the packing skeleton (its
 // materials picked from master data), checked and approved; a packing batch issued from the released bulk batch of
-// TrueBatch Tablets; the record run (the first step on the floor screen, the rest through the API); then QC approval
+// TrueBatch Capsules; the record run (the first step on the floor screen, the rest through the API); then QC approval
 // with the QC report number, QA release and the packing record PDF.
 
 const baseURL = `http://127.0.0.1:${E2E_PACKING_PORT}`;
@@ -26,10 +26,10 @@ async function sign(page: Page) {
 }
 const masters = async (page: Page) => page.getByRole('button', { name: 'Packing masters' }).click();
 
-test('TB-P2 packing journey: packing master from the skeleton, approved; a packing batch from the released bulk batch, run, QC approved, then QA released; the packing record PDF', async ({ browser }) => {
+test('TC-P2 packing journey: packing master from the skeleton, approved; a packing batch from the released bulk batch, run, QC approved, then QA released; the packing record PDF', async ({ browser }) => {
   // The author: a new packing master for the pack, from the packing skeleton.
   const author = await person(browser, 'pauthor');
-  await expect(author.page.locator('.brand')).toContainText('TrueBatch Tablets Packing');
+  await expect(author.page.locator('.brand')).toContainText('TrueBatch Capsules Packing');
   await masters(author.page);
   // The product's own words: the page is headed as its tab.
   await expect(author.page.getByRole('heading', { level: 1 })).toHaveText('Packing masters');
@@ -120,10 +120,10 @@ test('TB-P2 packing journey: packing master from the skeleton, approved; a packi
     await expect(issue.getByText(/Not offered, because the Logbook does not have/)).toHaveCount(0);
     await issue.getByRole('group', { name: 'Packing line' }).getByRole('button', { name: /BL-01/ }).click();
     await issue.getByLabel('Bulk batch no.').fill('TB260001');
-    // Pull, don't type: the tablets issued are what is left of the bulk batch's good tablets, from TrueBatch Tablets,
+    // Pull, don't type: the tablets issued are what is left of the bulk batch's good tablets, from TrueBatch Capsules,
     // offered in the field; less may be typed (a part issue), more is refused.
     await expect(issue.getByLabel('Bulk tablets issued')).toHaveValue('100000');
-    await expect(issue.getByText('Left to issue of TB260001: 1,00,000 tablets (1,00,000 good tablets in TrueBatch Tablets). Issue all of it, or type less for a part issue.')).toBeVisible();
+    await expect(issue.getByText('Left to issue of TB260001: 1,00,000 tablets (1,00,000 good tablets in TrueBatch Capsules). Issue all of it, or type less for a part issue.')).toBeVisible();
     await issue.getByLabel('Bulk tablets issued').fill('100001');
     await issue.getByRole('button', { name: 'Next: sign' }).click();
     await iss.page.getByRole('dialog').last().getByRole('button', { name: 'Sign', exact: true }).click();
@@ -150,14 +150,14 @@ test('TB-P2 packing journey: packing master from the skeleton, approved; a packi
   const batch = { id: Number(/#\/batch\/(\d+)$/.exec(iss.page.url())![1]), batchNo: (await iss.page.locator('.bno').textContent())! };
   await iss.ctx.close();
 
-  // The operator receives the bulk on the floor screen: the bulk batch and its date of manufacture come from TrueBatch Tablets.
+  // The operator receives the bulk on the floor screen: the bulk batch and its date of manufacture come from TrueBatch Capsules.
   const op = await person(browser, 'pop');
   const chk = await person(browser, 'pchk');
   await op.page.getByRole('button', { name: new RegExp(`${batch.batchNo} · Examplol 100 mg tablets, 10 x 10 blister`) }).click();
   await expect(op.page.getByRole('navigation', { name: 'Stages' })).toContainText('Issue to the line');
   await op.page.getByRole('button', { name: /^1 Bulk tablets issued to the line/ }).click();
   await expect(op.page.locator('main')).toContainText('TB260001');
-  await expect(op.page.locator('main')).toContainText('From TrueBatch Tablets: TrueBatch Tablets batch TB260001: RELEASED, PRD-001, manufactured 3 Nov 2026');
+  await expect(op.page.locator('main')).toContainText('From TrueBatch Capsules: TrueBatch Capsules batch TB260001: RELEASED, PRD-001, manufactured 3 Nov 2026');
   await op.page.getByRole('group', { name: 'Containers closed and intact, labels show this bulk batch and RELEASED' }).getByRole('button', { name: 'Yes' }).click();
   await expect(op.page.getByRole('region', { name: 'Results' })).toContainText('expiry 10/2028');
   await op.page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -221,9 +221,9 @@ test('TB-P2 packing journey: packing master from the skeleton, approved; a packi
   await qa.page.getByRole('button', { name: 'To review' }).click();
   await qa.page.getByRole('region', { name: 'Waiting for QA release' }).getByRole('button', { name: new RegExp(batch.batchNo) }).click();
   await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk tablets issued to the line');
-  // Whole-suite run, S24: TrueBatch Tablets publishes no deviation notes here (the link does not answer), so the bulk
+  // Whole-suite run, S24: TrueBatch Capsules publishes no deviation notes here (the link does not answer), so the bulk
   // batch's deviations are not checked: QA checks them in the Deviations system and types what was found.
-  await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk deviations not checked (TrueBatch Tablets link down): bulk batch TB260001');
+  await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001');
   await expect(qa.page.getByRole('button', { name: 'Sign: released' })).toBeDisabled();
   await qa.page.getByLabel(/Bulk deviations not checked/).fill('Checked in the Deviations system: none open for TB260001');
   await qa.page.getByRole('button', { name: 'Sign: released' }).click();
@@ -238,7 +238,7 @@ test('TB-P2 packing journey: packing master from the skeleton, approved; a packi
   await qa.ctx.close();
 });
 
-test('TB-21 QA terminates a packing batch after materials were issued: the window, whole on the screen, asks what went back to stores of each lot, shown with the termination; a refusal on the step screen is not hidden behind the action bar', async ({ browser }) => {
+test('TC-21 QA terminates a packing batch after materials were issued: the window, whole on the screen, asks what went back to stores of each lot, shown with the termination; a refusal on the step screen is not hidden behind the action bar', async ({ browser }) => {
   const tablet = { width: 1366, height: 900 };
   // A packing batch on line BL-01 (free again after the journey), its bulk received and checked, through the API.
   const iss = await person(browser, 'piss');

@@ -6,17 +6,17 @@ import type { SignOn } from './signon.js';
 // Platform PL-01: rights are this product's permission codes from core's token, one code per action. The same list is
 // declared to the platform in ops/manifest.draft.json (test/permissions.test.ts keeps the two equal).
 export const PERMISSIONS = {
-  'truebatch.master.author': 'Write master batch record versions',
-  'truebatch.master.check': 'Check a master batch record version written by another person',
-  'truebatch.master.approve': 'Approve a checked master batch record version (QA)',
-  'truebatch.batch.issue': 'Issue a batch record from an approved master version',
-  'truebatch.batch.operate': 'Record and sign steps of a batch as performed',
-  'truebatch.batch.check': 'Check steps performed by another person (second person)',
-  'truebatch.batch.supervise': 'Production approval of a completed batch record',
-  'truebatch.qc.approve': 'QC approval of the results used for release',
-  'truebatch.qa.release': 'QA review and release of bulk tablets',
-  'truebatch.view': 'View batch records and master versions',
-  'truebatch.demo.skip': 'Skip a running wait (demo installations only)',
+  'truebatch_capsules.master.author': 'Write master batch record versions',
+  'truebatch_capsules.master.check': 'Check a master batch record version written by another person',
+  'truebatch_capsules.master.approve': 'Approve a checked master batch record version (QA)',
+  'truebatch_capsules.batch.issue': 'Issue a batch record from an approved master version',
+  'truebatch_capsules.batch.operate': 'Record and sign steps of a batch as performed',
+  'truebatch_capsules.batch.check': 'Check steps performed by another person (second person)',
+  'truebatch_capsules.batch.supervise': 'Production approval of a completed batch record',
+  'truebatch_capsules.qc.approve': 'QC approval of the results used for release',
+  'truebatch_capsules.qa.release': 'QA review and release of bulk tablets',
+  'truebatch_capsules.view': 'View batch records and master versions',
+  'truebatch_capsules.demo.skip': 'Skip a running wait (demo installations only)',
 } as const;
 export type Permission = keyof typeof PERMISSIONS;
 export const CODES = Object.keys(PERMISSIONS) as Permission[];
