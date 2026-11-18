@@ -20,6 +20,8 @@ export const limitSchema = z.object({
 // fillWeight: the fill per capsule; shellWeight: the mean empty shell (hard) or the wet gel mass per capsule (soft gel);
 // filledWeight: fill + shell, the theoretical weight of one filled capsule (gross fill-weight target, counts by weight).
 export const HEADER_VALUES = ['batchSize', 'fillWeight', 'coatedWeight', 'fillBatch', 'coatedBatch', 'shellWeight', 'filledWeight'] as const;
+// The header values per capsule: the only ones a block setting with notBatch 'tablet' takes (the others are per batch).
+export const PER_TABLET_HEADERS: readonly (typeof HEADER_VALUES)[number][] = ['fillWeight', 'coatedWeight', 'shellWeight', 'filledWeight'];
 export const settingValueSchema = z.union([
   text(),
   limitSchema,

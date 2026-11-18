@@ -22,7 +22,7 @@ export const softgelEncapsulate: Block = {
   settings: [
     { name: 'ribbonLimit', label: 'Ribbon thickness limits', kind: 'limit' },
     { name: 'wedgeLimit', label: 'Wedge temperature limits', kind: 'limit' },
-    { name: 'fillTarget', label: 'Fill weight target', kind: 'quantity' },
+    { name: 'fillTarget', label: 'Fill weight target', kind: 'quantity', notBatch: 'tablet' },
     { name: 'meanLimit', label: 'Mean fill weight limits', kind: 'limit' },
     { name: 'weightBand', label: 'Each fill (± % of the target)', kind: 'number' },
     { name: 'sealLimit', label: 'Seal thickness limits', kind: 'limit' },

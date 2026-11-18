@@ -64,7 +64,7 @@ export function neededKind(block: Block, setting: string, settings: Step['settin
   return undefined;
 }
 
-const what = (k: Kind) => (k === 'number' ? 'a plain number' : k === 'fraction' ? 'a percentage' : `${/^[aeiou]/i.test(k) ? 'an' : 'a'} ${k}`);
+export const what = (k: Kind) => (k === 'number' ? 'a plain number' : k === 'fraction' ? 'a percentage' : `${/^[aeiou]/i.test(k) ? 'an' : 'a'} ${k}`);
 
 /** TC-01: a limit, or a C1 target typed with its unit, in a unit of another kind than the value it is checked against. */
 export function unitKindProblem(block: Block, name: string, settings: Step['settings'], unit: string): string | null {

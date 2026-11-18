@@ -7,9 +7,9 @@ import { findBlock, type Block } from '../blocks/index.js';
 import { Dec, c1WithinLimits, findUnit, t10Compensating, t11SaltFactor, t2Total, t8BatchScaling, type Q } from '../templates/index.js';
 import { decimalsOf } from '../templates/core.js';
 import { evaluate, lineField, lineQuantity, QUANTITY } from '../engine/values.js';
-import { materialLines, type Answer, type FormulaLine, type Limit, type MasterDoc, type SettingValue } from './schema.js';
+import { materialLines, PER_TABLET_HEADERS, type Answer, type FormulaLine, type Limit, type MasterDoc, type SettingValue } from './schema.js';
 import { packingChecks } from './packing.js';
-import { neededKind, unitKindProblem } from './kinds.js';
+import { neededKind, unitKindProblem, what as kindWords } from './kinds.js';
 import { isBalance } from '../engine/picks.js';
 
 /** A warning the author answers: one of the options, with a reason when `needsReason`. */
@@ -369,6 +369,9 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
   }
 }
 
+const HEADER_WORDS: Record<string, string> = { batchSize: 'the batch size', fillWeight: 'the theoretical fill weight', coatedWeight: 'the theoretical coated weight',
+  fillBatch: 'the theoretical fill batch weight', coatedBatch: 'the theoretical coated batch weight', shellWeight: 'the shell weight', filledWeight: 'the theoretical filled capsule weight' };
+
 /** Whether a step setting fits its kind, and a reference points at something earlier that exists. */
 function settingProblem(doc: MasterDoc, si: number, ti: number, block: Block, bs: Block['settings'][number], settings: Record<string, SettingValue>, v: SettingValue): string | null {
   const kind = bs.kind;
@@ -384,6 +387,17 @@ function settingProblem(doc: MasterDoc, si: number, ti: number, block: Block, bs
     const need = neededKind(block, bs.name, settings);
     const has = findUnit(r.unit)?.kind;
     return need && has !== need ? `${bs.label}: the label claim of ${line.name} is ${line.labelClaim}, but this step needs a ${need} per capsule` : null;
+  }
+  // Not a batch quantity (notBatch): a formula line gives its batch quantity and the batch values of the header are per
+  // batch, so a fill target of 15 kg would refuse every capsule, and a largest change of 25 kg would let every round of
+  // drying pass. A weight per capsule also takes the header's capsule weights and an earlier step; a
+  // tolerance is typed only. What is left is checked as any quantity below.
+  const notTablet = (x: SettingValue) => typeof x === 'object' && ('formula' in x || ('header' in x && !PER_TABLET_HEADERS.includes(x.header)));
+  if (bs.notBatch && typeof v === 'object' && !('unit' in v) && (bs.notBatch === 'tolerance' || notTablet(v))) {
+    const what = 'formula' in v ? `the batch quantity of ${doc.formula.find((l) => l.key === v.formula)?.name ?? v.formula}` : 'header' in v ? HEADER_WORDS[v.header] : `${v.ref} (an earlier step)`;
+    return bs.notBatch === 'tablet'
+      ? `${bs.label} is a weight per capsule: pick the fill, shell or filled capsule weight from the header, an earlier step's result, or type it (${what} is per batch)`
+      : `${bs.label} is a tolerance: type it (${what} is not a tolerance)`;
   }
   if (typeof v === 'string') {
     if (kind === 'number') return DECIMAL.test(v) ? null : `"${v}" is not a plain decimal`;
@@ -404,7 +418,11 @@ function settingProblem(doc: MasterDoc, si: number, ti: number, block: Block, bs
   }
   if ('formula' in v) {
     if (kind !== 'material' && kind !== 'quantity') return `A formula line is given where a ${kind} is wanted`;
-    return materialLines(doc).some((l) => l.key === v.formula) ? null : `No formula line ${v.formula}`;
+    if (!materialLines(doc).some((l) => l.key === v.formula)) return `No formula line ${v.formula}`;
+    // A formula line gives its batch quantity, a mass: a setting of another known kind (a number of tablets, a sieve
+    // aperture, a percentage) never takes one (as Liquids' and Injectables' rule).
+    const need = kind === 'quantity' ? neededKind(block, bs.name, settings) : undefined;
+    return need && need !== 'mass' ? `${bs.label}: a formula line gives its batch quantity (a mass), but this step needs ${kindWords(need)}: type the value` : null;
   }
   if ('header' in v) {
     if (kind !== 'quantity') return `A header value is given where a ${kind} is wanted`;

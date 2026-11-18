@@ -8,7 +8,7 @@ import type { Stored, Value } from '../../../shared/engine/index.js';
 import type { Kind } from '../../../shared/templates/index.js';
 import { HEADER_VALUES, materialLines, type Limit, type MasterDoc, type SettingValue, type Step } from '../../../shared/master/schema.js';
 import { usedFields, verdictless, workedExample } from './example.js';
-import { earlierRefs, HEADER_LABEL, kindOfUnit, labelClaimLines, neededKind, unitLabel, unitsOf } from './model.js';
+import { HEADER_LABEL, kindOfUnit, labelClaimLines, neededKind, quantityChoices, unitLabel, unitsOf } from './model.js';
 import { lower, sentence, slotsOf, type Part } from './sentences.js';
 import { Decimal } from './ui.js';
 import { api } from '../api.js';
@@ -197,7 +197,7 @@ function Slot({ doc, si, ti, block, settings, name, onChange }: {
     const def = kind === 'fraction' ? '%' : field?.unit ?? (unitSetting && typeof settings[unitSetting] === 'string' ? settings[unitSetting] as string : unitsOf(k)[0]?.symbol ?? '');
     return <LimitEdit label={s.label} value={typeof v === 'object' && 'unit' in v ? v : undefined} kind={k} unit={def} onChange={onChange} missing={missing} />;
   }
-  return <QuantitySource doc={doc} si={si} ti={ti} label={s.label} kind={kind} value={v} onChange={onChange} missing={missing} claim={s.formulaField === 'labelClaim'} />;
+  return <QuantitySource doc={doc} si={si} ti={ti} label={s.label} kind={kind} value={v} onChange={onChange} missing={missing} claim={s.formulaField === 'labelClaim'} notBatch={s.notBatch} />;
 }
 
 function LimitEdit({ label, value, kind, unit, onChange, missing }: { label: string; value?: Limit; kind?: Kind; unit: string; onChange: (l: Limit | undefined) => void; missing: boolean }) {
@@ -221,12 +221,13 @@ function LimitEdit({ label, value, kind, unit, onChange, missing }: { label: str
 /**
  * Where a quantity comes from: a typed value, a formula line, the header, or an earlier step (compatible kinds only).
  * `claim`: a value per capsule read from a formula line (formulaField): a typed value or a line's label claim only.
+ * `notBatch`: never a batch quantity (no formula line, no batch value of the header; quantityChoices).
  */
-function QuantitySource({ doc, si, ti, label, kind, value, onChange, missing, claim }: {
+function QuantitySource({ doc, si, ti, label, kind, value, onChange, missing, claim, notBatch }: {
   doc: MasterDoc; si: number; ti: number; label: string; kind?: Kind; value?: SettingValue; onChange: (v: SettingValue | undefined) => void; missing: boolean; claim?: boolean;
+  notBatch?: 'tablet' | 'tolerance';
 }) {
-  const fits = (k: Kind | undefined) => !kind || k === kind;
-  const refs = claim ? [] : earlierRefs(doc, si, ti).filter((r) => fits(r.kind));
+  const { lines, headers, refs } = claim ? { lines: false, headers: [], refs: [] } : quantityChoices(doc, si, ti, kind, notBatch);
   const picked = typeof value === 'object' && 'formula' in value ? value.formula : undefined;
   const claims = claim ? labelClaimLines(doc, picked) : [];
   const code = value === undefined ? '' : typeof value === 'string' ? 'type' : 'formula' in value ? `${value.adjusted ? 'fa' : 'f'}:${value.formula}` : 'header' in value ? `h:${value.header}` : 'ref' in value ? `r:${value.ref}` : '';
@@ -247,7 +248,7 @@ function QuantitySource({ doc, si, ti, label, kind, value, onChange, missing, cl
             {claims.map((l) => <option key={`f${l.key}`} value={`f:${l.key}`}>label claim of {l.name}{l.labelClaim ? ` (${l.labelClaim})` : ' (none entered)'}</option>)}
           </optgroup>
         )}
-        {!claim && fits('mass') && doc.formula.length > 0 && (
+        {lines && (
           <optgroup label="Formula: batch quantity">
             {doc.formula.flatMap((l) => [
               <option key={`f${l.key}`} value={`f:${l.key}`}>{l.name}</option>,
@@ -255,9 +256,9 @@ function QuantitySource({ doc, si, ti, label, kind, value, onChange, missing, cl
             ])}
           </optgroup>
         )}
-        {!claim && HEADER_VALUES.some((h) => fits(HEADER_LABEL[h].kind)) && (
+        {headers.length > 0 && (
           <optgroup label="Header">
-            {HEADER_VALUES.filter((h) => fits(HEADER_LABEL[h].kind) && (!h.startsWith('coated') || doc.header.coatedWeightMg) && ((h !== 'shellWeight' && h !== 'filledWeight') || doc.header.shellWeightMg)).map((h) => <option key={h} value={`h:${h}`}>{HEADER_LABEL[h].label}</option>)}
+            {headers.map((h) => <option key={h} value={`h:${h}`}>{HEADER_LABEL[h].label}</option>)}
           </optgroup>
         )}
         {refs.length > 0 && <optgroup label="An earlier step">{refs.map((r) => <option key={r.ref} value={`r:${r.ref}`}>{r.label}</option>)}</optgroup>}
