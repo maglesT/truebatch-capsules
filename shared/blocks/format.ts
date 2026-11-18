@@ -49,6 +49,12 @@ export const settingSchema = z.object({
   // 'labelClaim': the line's label claim per capsule as written ("50 mg"), for a value per capsule (T14's label claim).
   // Such a setting is a typed value or a line's label claim; a header value or an earlier step is refused (checks.ts).
   formulaField: z.enum(['labelClaim']).optional(),
+  // quantity: never a batch quantity, so a formula line (its batch quantity) and a batch value of the header (the batch
+  // size, the core or coated batch weight) are refused (checks.ts), and the designer does not offer them. Not with
+  // formulaField. 'tablet' (the Tablets name, kept for the port): a weight per capsule (a fill target or mean capsule weight); the fill, shell or filled weight of the
+  // header, an earlier step's result and a typed value are taken. 'tolerance': a small difference (the largest change
+  // between rounds of drying to constant weight); typed only, no header value or earlier step.
+  notBatch: z.enum(['tablet', 'tolerance']).optional(),
 }).strict();
 
 export const calcSchema = z.object({
@@ -124,6 +130,8 @@ export function blockProblems(b: Block): string[] {
   }
   for (const s of b.settings) if (s.options && (s.kind !== 'text' || !s.options.length)) p.push(`setting ${s.name}: only a text setting has a list`);
   for (const s of b.settings) if (s.formulaField && s.kind !== 'quantity') p.push(`setting ${s.name}: only a quantity setting reads a field of a formula line`);
+  for (const s of b.settings) if (s.notBatch && s.kind !== 'quantity') p.push(`setting ${s.name}: only a quantity setting is marked not a batch quantity`);
+  for (const s of b.settings) if (s.notBatch && s.formulaField) p.push(`setting ${s.name}: a setting that is not a batch quantity does not read a field of a formula line`);
   const known = new Set([...b.fields.map((f) => f.name), ...b.settings.map((s) => s.name), ...PACK_FACTS.map((x) => `pack.${x}`), ...BATCH_FACTS.map((x) => `batch.${x}`)]);
   for (const f of b.atIssue ?? []) if (!b.fields.some((x) => x.name === f)) p.push(`atIssue: no field ${f}`);
   const roundNames = new Set([...b.fields.map((f) => f.name), ...b.calcs.map((c) => c.name)]);

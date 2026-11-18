@@ -16,7 +16,7 @@ export const capsuleFillNet: Block = {
     { name: 'fillingDone', label: 'Filling finished', kind: 'yes-no' },
   ],
   settings: [
-    { name: 'fillTarget', label: 'Fill weight target', kind: 'quantity' },
+    { name: 'fillTarget', label: 'Fill weight target', kind: 'quantity', notBatch: 'tablet' },
     { name: 'meanLimit', label: 'Mean fill weight limits', kind: 'limit' },
     { name: 'weightBand', label: 'Each fill (± % of the target)', kind: 'number' },
   ],

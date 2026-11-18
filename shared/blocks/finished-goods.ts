@@ -15,7 +15,8 @@ export const finishedGoods: Block = {
     { name: 'rejectWeight', label: 'Net weight of rejected capsules', kind: 'number', unit: 'kg' },
   ],
   settings: [
-    { name: 'meanWeight', label: 'Mean capsule weight', kind: 'quantity' },
+    // A weight per capsule (the capsules are counted by weight): the header's capsule weight or typed; never a batch weight.
+    { name: 'meanWeight', label: 'Mean capsule weight', kind: 'quantity', notBatch: 'tablet' },
     { name: 'yieldLimit', label: 'Yield limits (packs)', kind: 'limit' },
     { name: 'accountabilityLimit', label: 'Accountability limits (capsules)', kind: 'limit' },
   ],

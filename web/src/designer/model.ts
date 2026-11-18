@@ -10,7 +10,7 @@ import type { Problem } from '../../../shared/master/checks.js';
 import { isBalance, machineRefusal } from '../../../shared/engine/picks.js';
 import type { BlockField } from '../../../shared/blocks/format.js';
 import type { MasterData } from '../api-designer.js';
-import type { HEADER_VALUES, MasterDoc, SettingValue, Stage, Step } from '../../../shared/master/schema.js';
+import { HEADER_VALUES, PER_TABLET_HEADERS, type MasterDoc, type SettingValue, type Stage, type Step } from '../../../shared/master/schema.js';
 
 // The unit list as offered in pick lists: every unit of the templates' unit table (shared/templates/units.ts).
 export const UNITS = UNIT_LIST;
@@ -54,6 +54,25 @@ const CHECKS = /^(C\d|F2)$/;
  */
 export function labelClaimLines(doc: MasterDoc, picked?: string): MasterDoc['formula'] {
   return doc.formula.filter((l) => l.labelClaim || l.key === picked).sort((a, b) => Number(b.role === 'api') - Number(a.role === 'api'));
+}
+
+/**
+ * What the designer offers for a quantity setting besides "a value I type" (same rules as the master check), of the
+ * kind it needs: the formula lines' batch quantities (a mass), the header values (a coated weight only when the header
+ * has one) and earlier steps. Not a batch quantity (notBatch): no formula line and no batch value of the header; a
+ * weight per capsule takes the header's capsule weights and earlier steps, a tolerance is typed only.
+ */
+export function quantityChoices(doc: MasterDoc, si: number, ti: number, kind?: Kind, notBatch?: 'tablet' | 'tolerance'): {
+  lines: boolean; headers: (typeof HEADER_VALUES)[number][]; refs: RefOption[];
+} {
+  const fits = (k: Kind | undefined) => !kind || k === kind;
+  if (notBatch === 'tolerance') return { lines: false, headers: [], refs: [] };
+  return {
+    lines: !notBatch && fits('mass') && doc.formula.length > 0,
+    headers: HEADER_VALUES.filter((h) => fits(HEADER_LABEL[h].kind) && (!h.startsWith('coated') || !!doc.header.coatedWeightMg)
+      && ((h !== 'shellWeight' && h !== 'filledWeight') || !!doc.header.shellWeightMg) && (!notBatch || PER_TABLET_HEADERS.includes(h))),
+    refs: earlierRefs(doc, si, ti).filter((r) => fits(r.kind)),
+  };
 }
 
 export interface RefOption { ref: string; label: string; kind: Kind | undefined }

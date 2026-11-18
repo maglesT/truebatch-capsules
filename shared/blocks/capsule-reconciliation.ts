@@ -13,7 +13,7 @@ export const capsuleReconciliation: Block = {
   ],
   settings: [
     { name: 'theoretical', label: 'Theoretical number of capsules', kind: 'quantity' },
-    { name: 'meanWeight', label: 'Mean filled-capsule weight (after the last weight-changing step)', kind: 'quantity' },
+    { name: 'meanWeight', label: 'Mean filled-capsule weight (after the last weight-changing step)', kind: 'quantity', notBatch: 'tablet' },
     { name: 'yieldLimit', label: 'Yield limits', kind: 'limit' },
     { name: 'accountabilityLimit', label: 'Accountability limits', kind: 'limit' },
   ],
