@@ -7,6 +7,7 @@ import { c8PrintedData, c9SerialCodes, expiryMonth, gs1, printedMonth, t27Expiry
 import { at, ev, small } from './engine-fixture.js';
 import { code, GTIN, packing } from './packing-fixture.js';
 import { headline } from '../web/src/api-floor.js';
+import { withMaterialUnit } from '../web/src/designer/skeletons.js';
 
 // TrueBatch Capsules Packing: the packing master checks (TC-P1 to TC-P9), the packing blocks run by the shared engine,
 // the serialisation check (match, mismatch, duplicate, reconciliation), printed materials reconciled, the expiry from
@@ -109,6 +110,23 @@ describe('the packing master (TC-P1 to TC-P9)', () => {
   it('TC-P9 a pack for India domestic carries its MRP; an export pack may have none', () => {
     expect(errors(packing({ mrp: undefined }), 'TC-P9')).toEqual(['A pack for India domestic needs its MRP: it is printed on the pack and checked']);
     expect(errors(packing({ mrp: undefined, destination: 'Export' }))).toEqual([]);
+  });
+});
+
+describe('a packing material\'s unit changed after its steps were added (demo run, 18 Nov 2026)', () => {
+  const units = (d: MasterDoc) => d.stages.flatMap((s) => s.steps).filter((t) => (t.settings.material as { formula?: string } | undefined)?.formula === 'foil').map((t) => `${t.block.id} ${String(t.settings.unit)}`);
+  it('the master refuses an issue or reconciliation step in another unit than its material', () => {
+    const d = packing();
+    d.pack!.materials[0]!.unit = 'g';
+    expect(errors(d, 'TC-P4')).toEqual(['Printed aluminium foil is counted in g in the packing materials, but this step in m: make them the same',
+      'Printed aluminium foil is counted in g in the packing materials, but this step in m: make them the same']);
+  });
+  it('the designer changes the unit on the material and on its steps together', () => {
+    const d = withMaterialUnit(packing(), 'foil', 'g');
+    expect(d.pack!.materials[0]!.unit).toBe('g');
+    expect(units(d)).toEqual(['pack-material-issue g', 'printed-reconciliation g']);
+    expect(errors(d)).toEqual([]);
+    expect(units(packing())).toEqual(['pack-material-issue m', 'printed-reconciliation m']);
   });
 });
 
