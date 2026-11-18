@@ -28,7 +28,7 @@ beforeAll(async () => {
   t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
   t.master.equipment_.push({ ...item('eq-cf', 'CF-01', 'Capsule filling machine'), kind: 'equipment', type: 'capsule filling machine', room: 'CF-01' });
   const people = { author: ['truebatch_capsules.master.author'], issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.batch.check'],
-    ravi: ['truebatch_capsules.batch.check'], sam: ['truebatch_capsules.batch.supervise'], viewer: ['truebatch_capsules.view'] } as const;
+    ravi: ['truebatch_capsules.batch.check'], sam: ['truebatch_capsules.batch.supervise'], viewer: ['truebatch_capsules.view'], qahead: ['truebatch_capsules.qa.release'] } as const;
   for (const [name, perms] of Object.entries(people)) {
     await seedUser(t.owner, name, [...perms]);
     cookies[name] = (await login(t.app, name)).cookie;
@@ -93,5 +93,20 @@ describe('My work', () => {
     const due = (await mine('asha')).find((w) => w.id === c.id)!.badges;
     expect(due).toMatchObject([{ kind: 'due', step: '0.1.0.1', stage: 'Stage 0', title: 'Fill capsules with periodic checks' }]);
     expect(Date.parse(due[0]!.at!) - Date.now()).toBeGreaterThan(29 * 60_000);
+  });
+});
+
+describe('My work: a QA hold (port of Tablets round 33)', () => {
+  it('QA sees the step waiting for its release; once released, the badge goes and a second release is refused', async () => {
+    const h = await issue(small([{ steps: [{ checker: false, flow: { kind: 'qa-hold' } }, { block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '0.100 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' } } }] }]));
+    expect((await mine('qahead')).some((w) => w.id === h.id)).toBe(false);
+    await act('asha', h.id, '0.1.0.1', 'start');
+    await act('asha', h.id, '0.1.0.1', 'record', { values: { reading: '6.0' } });
+    expect((await sign('asha', h.id, '0.1.0.1', 'done')).statusCode).toBe(200);
+    expect((await mine('qahead')).find((w) => w.id === h.id)!.badges).toEqual([{ kind: 'hold', step: '0.1.0.1', stage: 'Stage 0', title: 'Check a value against limits: pH' }]);
+    expect((await mine('asha')).find((w) => w.id === h.id)!.badges).toEqual([]);
+    expect((await sign('qahead', h.id, '0.1.0.1', 'release-hold')).statusCode).toBe(200);
+    expect((await mine('qahead')).some((w) => w.id === h.id)).toBe(false);
+    expect((await sign('qahead', h.id, '0.1.0.1', 'release-hold')).statusCode).toBe(409);
   });
 });
