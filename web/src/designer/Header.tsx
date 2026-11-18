@@ -58,7 +58,7 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
         <label>{shellLabel}<Decimal label={shellLabel} value={header.shellWeightMg}
           onChange={(v) => onChange(v ? { ...header, shellWeightMg: v } : (({ shellWeightMg: _, ...h }) => h)(header))} /></label>
         {!soft && <label className="check"><input type="checkbox" checked={!!header.usOtc}
-          onChange={(e) => onChange(e.target.checked ? { ...header, usOtc: true } : (({ usOtc: _, ...h }) => h)(header))} /> US OTC product (the capsules are sealed)</label>}
+          onChange={(e) => onChange(e.target.checked ? { ...header, usOtc: true } : (({ usOtc: _, ...h }) => h)(header))} /> US OTC: the capsules are sealed</label>}
         <div className="calc-note">{core?.ok ? <>Theoretical fill batch weight: <b>{grouped(core.shown)}</b></> : <span className="muted">The fill batch weight shows once the batch size and fill weight are set.</span>}</div>
       </div>
       {/* TC-11: a balance is offered in these rooms or in a room the stage allows. */}

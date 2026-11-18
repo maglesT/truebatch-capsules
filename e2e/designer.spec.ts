@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { logIn } from './helpers.js';
 
-// The master designer: a small master built from a skeleton, a master-check problem found and fixed, then the review
+// The master designer: a small hard capsule master built from a skeleton, a master-check problem found and fixed, then the review
 // and approval workflow with three people, each in their own browser (TC-02).
 
 async function as(browser: Browser, who: string, viewport?: { width: number; height: number }): Promise<Page> {
@@ -33,10 +33,14 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   await author.getByRole('button', { name: /PRD-001/ }).click();
   await author.getByLabel('Batch size (capsules)').fill('100000');
   await author.getByLabel('Theoretical fill weight (mg per capsule)').fill('250.0');
+  // TC-01: the shell, from the header.
+  await author.getByLabel('Shell type').selectOption('hard gelatin');
+  await author.getByLabel('Shell size').fill('1');
+  await author.getByLabel('Mean empty shell weight (mg)').fill('75.0');
   // A new master names no dispensing rooms; the rooms with a weighing balance are listed first, by name.
   await expect(author.getByText('None chosen yet: choose the rooms of master data where the materials are weighed')).toBeVisible();
   await author.getByLabel('Add to dispensing rooms (where the materials are weighed)').selectOption({ label: 'DSP-01 · Dispensing booth 1 (Dispensing)' });
-  await author.getByText('Process skeleton: Direct compression, uncoated').click();
+  await author.getByText('Process skeleton: Hard capsule, direct fill').click();
   await author.getByRole('button', { name: 'Create draft' }).click();
   await expect(author.getByRole('heading', { name: 'PRD-001 · Examplol 100 mg capsules' })).toBeVisible();
 
@@ -47,7 +51,14 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   await author.getByRole('button', { name: /MAT-001/ }).click();
   await author.getByLabel('mg per capsule of Examplol').fill('250.0');
   await author.getByLabel('Role of Examplol').selectOption('api');
-  await expect(author.locator('.total.ok')).toContainText('equals the theoretical fill weight');
+  await expect(author.locator('.total.ok').first()).toContainText('equals the theoretical fill weight');
+  // The empty shells: a formula line at the mean empty shell weight, weighed like any material (owner, 18 Nov 2026).
+  await author.getByRole('button', { name: '+ Add a material' }).click();
+  await author.getByLabel('Material').fill('MAT-008');
+  await author.getByRole('button', { name: /MAT-008/ }).click();
+  await author.getByLabel('mg per capsule of Empty hard gelatin capsule size 1').fill('75.0');
+  await author.getByLabel('Place of Empty hard gelatin capsule size 1').selectOption('shell');
+  await expect(author.locator('.total.ok', { hasText: 'Shell' })).toContainText('equals the mean empty shell weight');
 
   // The process: 2 stages, each starting with line clearance (TC-10); the dry-mix step of blending is removed, leaving 4.
   await author.getByRole('button', { name: 'Process', exact: true }).click();
@@ -75,11 +86,15 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   await author.getByLabel('Sieve no. (mesh and aperture)').fill('40 mesh (425 µm)');
   await expect(check.getByRole('button', { name: /Sieve no\. \(mesh and aperture\) is not set/ })).toBeHidden();
 
-  await check.getByRole('button', { name: /Hardness limits is not set/ }).click();
-  await author.getByLabel('Hardness limits: lowest').fill('60');
-  await author.getByLabel('Hardness limits: highest').fill('120');
-  await author.getByLabel('Thickness limits: lowest').fill('3.8');
-  await author.getByLabel('Thickness limits: highest').fill('4.2');
+  // Filling: the label claim for weight variation, and the metal detector's test pieces.
+  await check.getByRole('button', { name: /Label claim per capsule is not set/ }).click();
+  await author.getByLabel('Label claim per capsule', { exact: true }).first().selectOption('type');
+  await author.getByLabel('Label claim per capsule: value').first().fill('250');
+  await author.getByLabel('Label claim per capsule: unit').first().selectOption('mg');
+  await check.getByRole('button', { name: /Iron test piece \(mm\) is not set/ }).click();
+  await author.getByLabel('Iron test piece (mm)').first().fill('1.0');
+  await author.getByLabel('Non-iron test piece (mm)').first().fill('1.5');
+  await author.getByLabel('Stainless steel test piece (mm)').first().fill('2.0');
   // The disintegration medium's temperature is recorded: the check asks for its limits.
   await check.getByRole('button', { name: /Medium temperature is recorded but not checked/ }).click();
   await author.getByLabel('Medium temperature limits: lowest').fill('35');

@@ -40,7 +40,7 @@ test('TC-14 floor journey: start, a value out of limits needs a deviation note, 
   const batch = await issueBatch(await setup.newPage());
   await setup.close();
 
-  // The operator, on the line's capsule.
+  // The operator, on the line's tablet computer.
   const opCtx = await browser.newContext({ viewport: { width: 1024, height: 768 } });
   const op = await opCtx.newPage();
   await logIn(op, 'op1');

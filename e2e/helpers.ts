@@ -23,7 +23,7 @@ export async function clearOfActionBar(page: Page, what: Locator) {
   }).toBe(true);
 }
 
-/** Scrolls so the element sits just above the sticky action bar, as on a capsule scrolled down to the field. */
+/** Scrolls so the element sits just above the sticky action bar, as on a tablet computer scrolled down to the field. */
 export async function justAboveActionBar(what: Locator) {
   await what.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().bottom - (document.querySelector('.action-bar')!.getBoundingClientRect().top - 4)));
 }

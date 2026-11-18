@@ -247,7 +247,7 @@ function QuantitySource({ doc, si, ti, label, kind, value, onChange, missing }: 
         )}
         {HEADER_VALUES.some((h) => fits(HEADER_LABEL[h].kind)) && (
           <optgroup label="Header">
-            {HEADER_VALUES.filter((h) => fits(HEADER_LABEL[h].kind) && (!h.startsWith('coated') || doc.header.coatedWeightMg)).map((h) => <option key={h} value={`h:${h}`}>{HEADER_LABEL[h].label}</option>)}
+            {HEADER_VALUES.filter((h) => fits(HEADER_LABEL[h].kind) && (!h.startsWith('coated') || doc.header.coatedWeightMg) && ((h !== 'shellWeight' && h !== 'filledWeight') || doc.header.shellWeightMg)).map((h) => <option key={h} value={`h:${h}`}>{HEADER_LABEL[h].label}</option>)}
           </optgroup>
         )}
         {refs.length > 0 && <optgroup label="An earlier step">{refs.map((r) => <option key={r.ref} value={`r:${r.ref}`}>{r.label}</option>)}</optgroup>}

@@ -239,7 +239,7 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
 });
 
 test('TC-21 QA terminates a packing batch after materials were issued: the window, whole on the screen, asks what went back to stores of each lot, shown with the termination; a refusal on the step screen is not hidden behind the action bar', async ({ browser }) => {
-  const capsule = { width: 1366, height: 900 };
+  const device = { width: 1366, height: 900 }; // the line's tablet computer
   // A packing batch on line BL-01 (free again after the journey), its bulk received and checked, through the API.
   const iss = await person(browser, 'piss');
   const mv = ((await (await iss.page.request.get('/api/masters')).json()) as { id: number; state: string }[]).find((v) => v.state === 'effective')!.id;
@@ -248,7 +248,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   expect(res.ok(), await res.text()).toBe(true);
   const batch = await res.json() as { id: number; batchNo: string };
   await iss.ctx.close();
-  const op = await person(browser, 'pop', capsule);
+  const op = await person(browser, 'pop', device);
   const chk = await person(browser, 'pchk');
   type Detail = { steps: { id: string; state: string; actions: string[]; contentHash: string }[] };
   const step = async (p: Page, key: string) => ((await (await p.request.get(`/api/batches/${batch.id}`)).json()) as Detail).steps.find((s) => s.id === key)!;
@@ -270,7 +270,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   await post(op, '0.1.2.1', 'start');
   await post(op, '0.1.2.1', 'record', { values: { ...lot('CTN-2'), matches: 'yes' } });
 
-  // The carton issue on the line's capsule: the quantity in the material's unit (nos, as MMS and its refusals say), and
+  // The carton issue on the line's tablet computer: the quantity in the material's unit (nos, as MMS and its refusals say), and
   // a refusal under the field shown in full, above the sticky Done bar.
   await op.page.goto(`/#/batch/${batch.id}/step/0.1.2.1`);
   const quantity = op.page.locator('.fl-field', { hasText: 'Quantity issued' });
@@ -289,7 +289,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   // to just above the bar: the refusal is scrolled up into view.
   await op.page.setViewportSize({ width: 1366, height: 760 });
   await refused();
-  await op.page.setViewportSize(capsule);
+  await op.page.setViewportSize(device);
   await quantity.getByRole('textbox').fill('105');
   await quantity.getByRole('textbox').press('Enter');
   await expect(quantity.getByRole('alert')).toHaveCount(0);
@@ -311,7 +311,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
 
   // QA terminates it: the window is whole on the screen, over the page, at 1366 × 900 and in a browser window (760), from
   // the batch screen and from the To review list (where the row moves on hover: the window is not held inside its card).
-  const qa = await person(browser, 'pqa', capsule);
+  const qa = await person(browser, 'pqa', device);
   const window = qa.page.getByRole('dialog', { name: `Terminate batch ${batch.batchNo}` });
   for (const height of [900, 760]) {
     await qa.page.setViewportSize({ width: 1366, height });
@@ -348,7 +348,7 @@ test('TC-21 QA terminates a packing batch after materials were issued: the windo
   await wholeOnScreen(qa.page, qa.page.getByRole('dialog').locator('form'));
   await sign(qa.page);
   await expect(qa.page.getByRole('region', { name: 'In production' }).locator('.pending-row', { hasText: batch.batchNo })).toHaveCount(0);
-  await qa.page.setViewportSize(capsule);
+  await qa.page.setViewportSize(device);
   await qa.page.goto(`/#/batch/${batch.id}`);
   await expect(qa.page.getByRole('note')).toContainText(/^Terminated by PQA at .* IST: Blister line 1 down for repair: the batch cannot be finished · Back to stores unused: lot TB260002 \(bulk PRD-001 · Examplol 100 mg capsules\) 60000 capsules, lot FOIL-2 \(PM-101 · Printed aluminium foil\) 300 m, lot CTN-2 \(PM-103 · Carton\) 5 nos; the rest counts as used$/);
   // The batch screen: the bulk capsules issued to this batch (not the master's standard batch), and no stage is "now".

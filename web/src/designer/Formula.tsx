@@ -12,7 +12,7 @@ import { Decimal, Order, Picker } from './ui.js';
 
 type Adjust = NonNullable<FormulaLine['adjust']>;
 const HERE = { stage: 0, sub: 1, step: 0, round: 1 };
-const PLACES = [['intragranular', 'Intragranular'], ['extragranular', 'Extragranular'], ['binder', 'Binder solution'], ['coating:1', 'Coating layer 1'], ['coating:2', 'Coating layer 2'], ['coating:3', 'Coating layer 3']] as const;
+const PLACES = [['intragranular', 'Intragranular'], ['extragranular', 'Extragranular'], ['binder', 'Binder solution'], ['shell', 'Shell (empty shell or gel mass)'], ['coating:1', 'Coating layer 1'], ['coating:2', 'Coating layer 2'], ['coating:3', 'Coating layer 3']] as const;
 const total = (lines: FormulaLine[]) => { const r = t2Total({ values: lines.map((l) => `${l.mgPerCapsule || '0'} mg`), unit: 'mg' }); return r.ok ? r.value : null; };
 
 export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, problems, onAnswer }: {
@@ -24,10 +24,13 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
   const put = (i: number, l: FormulaLine) => set(lines.map((x, j) => (j === i ? l : x)));
   const linked = [...new Set(masters.filter((m) => m.header.productItemId === doc.header.productItemId).flatMap((m) => m.materialIds))];
   const valid = (mg: string) => /^\d+(\.\d+)?$/.test(mg);
-  const core = lines.filter((l) => l.place !== 'coating' && l.role !== 'solvent');
+  const core = lines.filter((l) => l.place !== 'coating' && l.place !== 'shell' && l.role !== 'solvent');
   const coat = lines.filter((l) => l.place === 'coating');
+  const shell = lines.filter((l) => l.place === 'shell');
   const coreTotal = core.every((l) => valid(l.mgPerCapsule)) ? total(core) : null;
   const coatTotal = coat.every((l) => valid(l.mgPerCapsule)) ? total(coat) : null;
+  const shellTotal = shell.every((l) => valid(l.mgPerCapsule)) ? total(shell) : null;
+  const shellWeight = doc.header.shellWeightMg && valid(doc.header.shellWeightMg) ? new Dec(doc.header.shellWeightMg) : null;
   const gain = doc.header.coatedWeightMg && valid(doc.header.coatedWeightMg) && valid(doc.header.fillWeightMg) ? new Dec(doc.header.coatedWeightMg).minus(doc.header.fillWeightMg) : null;
   const sel = selected === undefined ? undefined : lines[selected];
 
@@ -61,8 +64,9 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
           </table>
         </div>
         <div className="totals">
-          <Total label="Core materials" value={coreTotal} target={valid(doc.header.fillWeightMg) ? new Dec(doc.header.fillWeightMg) : null} what="the theoretical fill weight" />
+          <Total label="Fill materials" value={coreTotal} target={valid(doc.header.fillWeightMg) ? new Dec(doc.header.fillWeightMg) : null} what="the theoretical fill weight" />
           {(coat.length > 0 || doc.header.coatedWeightMg) && <Total label="Coating" value={coatTotal} target={gain} what="the weight gain (coated − fill weight)" />}
+          {(shell.length > 0 || shellWeight) && <Total label="Shell" value={shellTotal} target={shellWeight} what={doc.header.shellType === 'soft gelatin' ? 'the wet gel mass per capsule' : 'the mean empty shell weight'} />}
         </div>
         {adding ? (
           <div className="add-box">

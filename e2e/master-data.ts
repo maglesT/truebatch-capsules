@@ -20,17 +20,18 @@ export function seedMasterData(m: FakeMaster) {
   m.equipment_.push(
     { ...item('eq-bal', 'BAL-01', 'Balance 60 kg'), kind: 'instrument', type: 'balance', room: 'DSP-01' },
     { ...item('eq-bln', 'BLN-01', 'Bin blender 200 L'), kind: 'equipment', type: 'blender', room: 'BLN-01' },
-    { ...item('eq-prs', 'PRS-01', 'Rotary tablet press'), kind: 'equipment', type: 'tablet press', room: 'CMP-01' },
+    { ...item('eq-cf', 'CF-01', 'Capsule filling machine 1'), kind: 'equipment', type: 'capsule filling machine', room: 'CFR-01' },
+    { ...item('eq-pol', 'POL-01', 'Capsule polishing machine 1'), kind: 'equipment', type: 'capsule polishing machine', room: 'CFR-01' },
+    { ...item('eq-md', 'MD-01', 'Metal detector 1'), kind: 'equipment', type: 'metal detector', room: 'CFR-01' },
     // The skeleton's sifting and in-process tests stand in the rooms of their stages (the master check warns otherwise).
     { ...item('eq-sft', 'SFT-01', 'Vibro sifter'), kind: 'equipment', type: 'sifter', room: 'BLN-01' },
-    { ...item('eq-frb', 'FRB-01', 'Friability tester'), kind: 'instrument', type: 'friability tester', room: 'CMP-01' },
-    { ...item('eq-dit', 'DIT-01', 'Disintegration tester'), kind: 'instrument', type: 'disintegration tester', room: 'CMP-01' },
+    { ...item('eq-dit', 'DIT-01', 'Disintegration tester'), kind: 'instrument', type: 'disintegration tester', room: 'CFR-01' },
   );
   // These rooms only, not the fixtures' rooms of the server tests.
   m.rooms_.splice(0);
   m.rooms_.push(
     { ...item('rm-dsp', 'DSP-01', 'Dispensing booth 1'), area: 'Dispensing', grade: 'D' },
     { ...item('rm-bln', 'BLN-01', 'Blending room 1'), area: 'Blending', grade: 'D' },
-    { ...item('rm-cmp', 'CMP-01', 'Compression room 1'), area: 'Compression', grade: 'D' },
+    { ...item('rm-cfr', 'CFR-01', 'Capsule filling room 1'), area: 'Capsule filling', grade: 'D' },
   );
 }
