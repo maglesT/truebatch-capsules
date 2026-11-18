@@ -55,3 +55,18 @@ describe('an optional reading or limit, and a counted value', () => {
     expect(run(doc, { probes: { value: '3', unit: 'units' } }).probesCheck).toMatchObject({ ok: true, check: { pass: false } });
   });
 });
+
+// Round 39 (found by the TrueBatch Oral Liquids session; port of Tablets round 39): durations() looked an optional time limit ("$timeLimit?") up
+// with its "?" still on, so an optional minimum mixing time never became a wait (no timer, no demo skip).
+describe('an optional minimum time ("$timeLimit?") is still a wait when the master sets it', async () => {
+  const { durations } = await import('../shared/engine/values.js');
+  const block: Block = { id: 'optional-time', version: 1, name: 'Mix for at least the time set', instruction: 'Mix.', checker: false,
+    fields: [{ name: 'start', label: 'Started', kind: 'timer' }, { name: 'end', label: 'Stopped', kind: 'timer' }],
+    settings: [{ name: 'timeLimit', label: 'Mixing time', kind: 'limit', optional: true }],
+    calcs: [{ name: 'mixTime', label: 'Mixing time', template: 'T13', args: { mode: 'duration', start: '$start', end: '$end', limit: '$timeLimit?' } }] } as unknown as Block;
+  it('set: one wait with its lower limit; not set: none', () => {
+    const withLimit = durations(block, { settings: { timeLimit: { low: '10', unit: 'min' } } } as never);
+    expect(withLimit).toEqual([{ calc: 'mixTime', label: 'Mixing time', start: 'start', end: 'end', limit: { low: '10', unit: 'min' } }]);
+    expect(durations(block, { settings: {} } as never)).toEqual([]);
+  });
+});
