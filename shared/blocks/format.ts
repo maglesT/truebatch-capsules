@@ -91,11 +91,14 @@ export type Block = z.infer<typeof blockSchema>;
 export const PACK_FACTS = ['unitsPerPack', 'packsPerCarton', 'shelfLifeMonths', 'expiryRule', 'type', 'destination', 'gtin', 'mrp'];
 export const BATCH_FACTS = ['line', 'bulk', 'mfgDate', 'capsules', 'packs'];
 
-/** The names inside "$name" strings of calculation arguments ("$name?" optional, "$prev.name" the previous round). */
-export function refsIn(x: unknown): string[] {
-  if (typeof x === 'string') return x.startsWith('$') ? [x.slice(1).replace(/^(prev|earlier)\./, '').replace(/\?$/, '')] : [];
-  if (Array.isArray(x)) return x.flatMap(refsIn);
-  if (x && typeof x === 'object') return Object.values(x).flatMap(refsIn);
+/**
+ * The names inside "$name" strings of calculation arguments ("$name?" optional, "$prev.name" the previous round).
+ * With keepPrev, a "$prev.name" stays "prev.name" so the caller can tell it from "$name".
+ */
+export function refsIn(x: unknown, keepPrev = false): string[] {
+  if (typeof x === 'string') return x.startsWith('$') ? [x.slice(1).replace(keepPrev ? /^earlier\./ : /^(prev|earlier)\./, '').replace(/\?$/, '')] : [];
+  if (Array.isArray(x)) return x.flatMap((y) => refsIn(y, keepPrev));
+  if (x && typeof x === 'object') return Object.values(x).flatMap((y) => refsIn(y, keepPrev));
   return [];
 }
 
@@ -118,9 +121,14 @@ export function blockProblems(b: Block): string[] {
   for (const s of b.settings) if (s.options && (s.kind !== 'text' || !s.options.length)) p.push(`setting ${s.name}: only a text setting has a list`);
   const known = new Set([...b.fields.map((f) => f.name), ...b.settings.map((s) => s.name), ...PACK_FACTS.map((x) => `pack.${x}`), ...BATCH_FACTS.map((x) => `batch.${x}`)]);
   for (const f of b.atIssue ?? []) if (!b.fields.some((x) => x.name === f)) p.push(`atIssue: no field ${f}`);
+  const roundNames = new Set([...b.fields.map((f) => f.name), ...b.calcs.map((c) => c.name)]);
   for (const c of b.calcs) {
     if (!(c.template in TEMPLATES)) p.push(`calculation ${c.name}: unknown template ${c.template}`);
-    for (const r of refsIn(c.args)) if (!known.has(r)) p.push(`calculation ${c.name}: "$${r}" is not a field, setting or earlier calculation`);
+    for (const r of refsIn(c.args, true)) {
+      // "$prev.name": the same field or calculation in the previous round, the calculation itself included (a running total).
+      const prev = r.startsWith('prev.') ? r.slice('prev.'.length) : undefined;
+      if (prev !== undefined ? !roundNames.has(prev) : !known.has(r)) p.push(`calculation ${c.name}: "$${r}" is not a field, setting or earlier calculation`);
+    }
     known.add(c.name);
   }
   if (b.stop && !b.calcs.some((c) => c.name === b.stop)) p.push(`stop: no calculation ${b.stop}`);
