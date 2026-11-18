@@ -12,7 +12,7 @@ import { sentence, sentenceText, settingText, slotsOf } from './sentences.js';
 export interface Line { key: string; text: string }
 export interface Section { key: string; title: string; lines: Line[] }
 
-const PLACE: Record<FormulaLine['place'], string> = { intragranular: 'intragranular', extragranular: 'extragranular', binder: 'in the binder solution', coating: 'coating' };
+const PLACE: Record<FormulaLine['place'], string> = { intragranular: 'intragranular', extragranular: 'extragranular', binder: 'in the binder solution', coating: 'coating', shell: 'shell' };
 const ROLE: Record<FormulaLine['role'], string> = { api: 'API', excipient: 'excipient', solvent: 'solvent, removed in processing' };
 
 function adjustText(doc: MasterDoc, l: FormulaLine): string {
@@ -67,7 +67,7 @@ export function stepText(doc: MasterDoc, t: Step, j: number, units?: Units): str
     t.training ? neededText(t.training, t.checker) : '',
     t.critical ? 'Critical step.' : '', t.minMinutes ? `Takes at least ${t.minMinutes} minutes.` : '', flow,
     t.everyMinutesLater ? `After ${t.everyMinutesLater.afterMinutes} minutes, a round every ${t.everyMinutesLater.everyMinutes} minutes.` : '',
-    t.onlyIf ? `Done only when the ${t.onlyIf.header === 'batchSize' ? 'batch size' : 'core batch weight'} is ${t.onlyIf.limit.low ? `at least ${t.onlyIf.limit.low}` : ''}${t.onlyIf.limit.low && t.onlyIf.limit.high ? ' and ' : ''}${t.onlyIf.limit.high ? `at most ${t.onlyIf.limit.high}` : ''} ${t.onlyIf.limit.unit}; otherwise left out.` : '',
+    t.onlyIf ? `Done only when the ${t.onlyIf.header === 'batchSize' ? 'batch size' : 'fill batch weight'} is ${t.onlyIf.limit.low ? `at least ${t.onlyIf.limit.low}` : ''}${t.onlyIf.limit.low && t.onlyIf.limit.high ? ' and ' : ''}${t.onlyIf.limit.high ? `at most ${t.onlyIf.limit.high}` : ''} ${t.onlyIf.limit.unit}; otherwise left out.` : '',
     t.orderAfter ? `Order-critical: after step ${after < 0 ? '(no longer in this stage)' : `${after + 1}. ${stepTitle(doc, steps[after]!)}`}.` : '',
     t.applyPerCharge ? `Apply ${t.applyPerCharge.liquid} of the liquid per ${t.applyPerCharge.charge} charged, then stop.` : ''].filter(Boolean).join(' ');
 }
@@ -79,9 +79,9 @@ export function describeMaster(doc: MasterDoc, units?: Units): Section[] {
   const top: Section[] = p ? [
     { key: 'header', title: 'Pack', lines: [
       { key: 'product', text: `Pack product ${h.productCode}, ${h.productName}.` },
-      { key: 'bulk', text: `Packs the bulk tablets ${p.bulkCode}, ${p.bulkName}; tablet weight ${h.coreWeightMg} mg (for counts by weight).` },
-      { key: 'batch', text: `Standard packing batch ${grouped(h.batchSize)} tablets.` },
-      { key: 'pack', text: `${p.type[0]!.toUpperCase()}${p.type.slice(1)} of ${p.unitsPerPack} tablets; ${p.packsPerCarton} packs per carton.` },
+      { key: 'bulk', text: `Packs the bulk capsules ${p.bulkCode}, ${p.bulkName}; capsule weight ${h.fillWeightMg} mg (for counts by weight).` },
+      { key: 'batch', text: `Standard packing batch ${grouped(h.batchSize)} capsules.` },
+      { key: 'pack', text: `${p.type[0]!.toUpperCase()}${p.type.slice(1)} of ${p.unitsPerPack} capsules; ${p.packsPerCarton} packs per carton.` },
       { key: 'expiry', text: `Approved shelf life ${p.shelfLifeMonths} months; expiry ${p.expiryRule === 'same month' ? 'month of manufacture + shelf life' : 'month of manufacture + shelf life − 1'}.` },
       { key: 'market', text: `For ${p.destination}${p.mrp ? `; MRP Rs. ${p.mrp} per pack` : ''}.` },
       ...(p.serialisation ? [{ key: 'serialisation', text: `Serialisation checked${p.gtin ? `; pack GTIN ${p.gtin}` : ''}.` }] : []),
@@ -91,13 +91,13 @@ export function describeMaster(doc: MasterDoc, units?: Units): Section[] {
   ] : [
     { key: 'header', title: 'Header', lines: [
       { key: 'product', text: `Product ${h.productCode}, ${h.productName}.` },
-      { key: 'batch', text: `Batch size ${grouped(h.batchSize)} tablets.` },
-      { key: 'weights', text: `Theoretical core weight ${h.coreWeightMg} mg per tablet${h.coatedWeightMg ? `; coated weight ${h.coatedWeightMg} mg` : '; uncoated'}${h.dieAreaMm2 ? `; die bore area ${h.dieAreaMm2} mm²` : ''}.` },
+      { key: 'batch', text: `Batch size ${grouped(h.batchSize)} capsules.` },
+      { key: 'weights', text: `Theoretical fill weight ${h.fillWeightMg} mg per capsule${h.coatedWeightMg ? `; coated weight ${h.coatedWeightMg} mg` : '; uncoated'}${h.shellType ? `; shell ${h.shellType}${h.shellSize ? ` size ${h.shellSize}` : ''}, ${h.shellType === 'soft gelatin' ? 'wet gel mass' : 'mean empty shell'} ${h.shellWeightMg ?? '(not set)'} mg` : '; shell (not set)'}${h.usOtc ? '; US OTC (sealed)' : ''}.` },
       ...(h.dispensingRooms?.length ? [{ key: 'dispensing', text: `Weighed in the dispensing rooms ${h.dispensingRooms.join(', ')}.` }] : []),
-      ...(h.otherStrengths ?? []).map((x, n) => ({ key: `strength:${n}`, text: `Also compressed from the same blend: ${x.name}, label claim ${x.labelClaim}, core weight ${x.coreWeightMg} mg.` })),
+      ...(h.otherStrengths ?? []).map((x, n) => ({ key: `strength:${n}`, text: `Also compressed from the same blend: ${x.name}, label claim ${x.labelClaim}, fill weight ${x.fillWeightMg} mg.` })),
     ] },
     { key: 'formula', title: 'Formula', lines: doc.formula.map((l) => ({ key: l.key,
-      text: `${l.name} (${l.code}), ${ROLE[l.role]}, ${PLACE[l.place]}${l.place === 'coating' ? ` layer ${l.layer ?? 1}` : ''}: ${l.mgPerTablet} mg per tablet${l.labelClaim ? ` (label claim ${l.labelClaim})` : ''}${l.batchQuantity ? ` (batch quantity written as ${l.batchQuantity})` : ''}${adjustText(doc, l)}.` })) },
+      text: `${l.name} (${l.code}), ${ROLE[l.role]}, ${PLACE[l.place]}${l.place === 'coating' ? ` layer ${l.layer ?? 1}` : ''}: ${l.mgPerCapsule} mg per capsule${l.labelClaim ? ` (label claim ${l.labelClaim})` : ''}${l.batchQuantity ? ` (batch quantity written as ${l.batchQuantity})` : ''}${adjustText(doc, l)}.` })) },
   ];
   return [
     ...top,

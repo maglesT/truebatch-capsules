@@ -10,7 +10,7 @@ import { emptyNote, inLogbook, machineRefusal } from '../../../shared/engine/pic
 
 // TC-03: issue a batch from the effective master version, signed "issued". A packing master's first step is recorded
 // at issue: the line, the released bulk batch (picked from TrueBatch Capsules; typed from its labels without the link)
-// and the tablets issued (what is left of its good tablets, pulled with it when TrueBatch Capsules gives them: all of it,
+// and the capsules issued (what is left of its good capsules, pulled with it when TrueBatch Capsules gives them: all of it,
 // or less typed for a part issue). A value the server finds typed by hand (a link absent or down) asks its label questions.
 export function IssueDialog({ row, onCancel }: { row: MasterRow; onCancel: () => void }) {
   const [v, setV] = useState<Version | null>(null);
@@ -39,14 +39,14 @@ export function IssueDialog({ row, onCancel }: { row: MasterRow; onCancel: () =>
   // The label questions of a value the server found typed by hand ("… is not recorded").
   const asked = handFields(block?.fields ?? [], Object.fromEntries((block?.fields ?? []).map((f) => [f.name, { from: 'hand', link: 'mms', state: 'absent' } as Source])))
     .filter((f) => problems.some((p) => p.startsWith(`${f.label} is not recorded`)));
-  // The date of manufacture comes with the bulk batch while TrueBatch Capsules answers, and so do the tablets issued
-  // when it gives them (pull, don't type): what is left of its good tablets, offered; less may be typed (a part issue).
+  // The date of manufacture comes with the bulk batch while TrueBatch Capsules answers, and so do the capsules issued
+  // when it gives them (pull, don't type): what is left of its good capsules, offered; less may be typed (a part issue).
   const picked = bulk?.link === 'ok' ? bulk.batches.find((x) => x.batchNo === String(values.bulk ?? '').trim()) : undefined;
   const offered = picked?.goodQuantity ? picked.left ?? picked.goodQuantity : undefined;
   const fields = [...atIssue.filter((f) => f.name !== 'mfgDate' || (bulk && bulk.link !== 'ok')), ...asked];
   const sent = Object.fromEntries(Object.entries(values).filter(([k]) => fields.some((f) => f.name === k)));
-  // Another bulk batch: the tablets typed for the previous one go.
-  const set = (name: string) => (raw: unknown) => setValues((x) => (name === 'bulk' ? { ...Object.fromEntries(Object.entries(x).filter(([k]) => k !== 'tablets')), bulk: raw } : { ...x, [name]: raw }));
+  // Another bulk batch: the capsules typed for the previous one go.
+  const set = (name: string) => (raw: unknown) => setValues((x) => (name === 'bulk' ? { ...Object.fromEntries(Object.entries(x).filter(([k]) => k !== 'capsules')), bulk: raw } : { ...x, [name]: raw }));
   const issue = async ({ proof }: { proof: string }) => {
     try {
       const b = await api<{ id: number }>('POST', '/api/batches', { masterVersionId: row.id, proof, ...(fields.length ? { values: sent } : {}) });
@@ -61,12 +61,12 @@ export function IssueDialog({ row, onCancel }: { row: MasterRow; onCancel: () =>
     <div className="overlay" role="dialog" aria-modal="true" aria-label="Issue a batch">
       <form className="card dialog fl" onSubmit={(e) => { e.preventDefault(); setSigning(true); }}>
         <h2>Issue a batch</h2>
-        <p>{doc.header.productCode} · {doc.header.productName}, version {row.versionNo}: {Number(doc.header.batchSize).toLocaleString('en-IN')} tablets{doc.pack ? `, packed from ${doc.pack.bulkCode}` : ''}. The batch number is given by the server.</p>
+        <p>{doc.header.productCode} · {doc.header.productName}, version {row.versionNo}: {Number(doc.header.batchSize).toLocaleString('en-IN')} capsules{doc.pack ? `, packed from ${doc.pack.bulkCode}` : ''}. The batch number is given by the server.</p>
         {fields.map((f) => (
-          <FieldInput key={f.name === 'tablets' ? `tablets-${picked?.batchNo ?? ''}` : f.name} f={f} unit={f.unit ?? ''} saved={f.name === 'tablets' && offered ? { value: offered, unit: f.unit ?? 'tablets' } : undefined} picks={f.kind === 'machine' ? offer.offered : []} note={[f.kind === 'machine' && machines.length && !lines.length ? emptyNote(doc.stages[0]!, f, machines, rooms) : null, f.kind === 'machine' ? offer.note : null]} onChange={set(f.name)}
+          <FieldInput key={f.name === 'capsules' ? `tablets-${picked?.batchNo ?? ''}` : f.name} f={f} unit={f.unit ?? ''} saved={f.name === 'capsules' && offered ? { value: offered, unit: f.unit ?? 'capsules' } : undefined} picks={f.kind === 'machine' ? offer.offered : []} note={[f.kind === 'machine' && machines.length && !lines.length ? emptyNote(doc.stages[0]!, f, machines, rooms) : null, f.kind === 'machine' ? offer.note : null]} onChange={set(f.name)}
             options={f.kind === 'bulk' ? (bulk?.batches ?? []).map((x) => x.batchNo) : []} />
         ))}
-        {picked?.goodQuantity && <p className="notice">Left to issue of {picked.batchNo}: {Number(offered).toLocaleString('en-IN')} tablets ({Number(picked.goodQuantity).toLocaleString('en-IN')} good tablets in TrueBatch Capsules{Number(picked.issued ?? 0) > 0 ? `, ${Number(picked.issued).toLocaleString('en-IN')} already issued to other packing batches` : ''}). Issue all of it, or type less for a part issue.</p>}
+        {picked?.goodQuantity && <p className="notice">Left to issue of {picked.batchNo}: {Number(offered).toLocaleString('en-IN')} capsules ({Number(picked.goodQuantity).toLocaleString('en-IN')} good capsules in TrueBatch Capsules{Number(picked.issued ?? 0) > 0 ? `, ${Number(picked.issued).toLocaleString('en-IN')} already issued to other packing batches` : ''}). Issue all of it, or type less for a part issue.</p>}
         {doc.pack && bulk && bulk.link !== 'ok' && <p className="notice warn">TrueBatch Capsules is not linked or not answering: type the bulk batch from its container labels; a second person checks it.</p>}
         {problems.length > 0 && <div className="notice bad" role="alert">{problems.map((p, i) => <p key={i}>{p}</p>)}</div>}
         <div className="actions">

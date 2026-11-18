@@ -6,7 +6,7 @@ export const packClearanceAfter: Block = {
   instruction: 'Clear the line after packing: nothing of this batch left on, in or around it, and the coder cleared of its data.',
   fields: [
     { name: 'line', label: 'Packing line', kind: 'machine', types: PACKING_LINE },
-    { name: 'noLeftover', label: 'No tablets, packs or printed materials of this batch left on, in or around the line', kind: 'yes-no' },
+    { name: 'noLeftover', label: 'No capsules, packs or printed materials of this batch left on, in or around the line', kind: 'yes-no' },
     { name: 'coderCleared', label: 'Coder cleared of this batch data', kind: 'yes-no' },
     { name: 'leftoversDone', label: 'Batch-coded leftovers destroyed and uncoded ones returned, as reconciled', kind: 'yes-no' },
   ],

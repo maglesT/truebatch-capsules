@@ -26,7 +26,7 @@ export function qtyText(r: Stored | undefined): string {
   return r.unit === 'kg' && !v.isZero() && v.abs().lt('0.01') ? `${v.times(1000).toFixed(3)} g` : `${v.toFixed(3)} ${r.unit}`;
 }
 
-/** Whole numbers of five digits or more with Indian thousands separators, as the lists show them ("50,000 tablets");
+/** Whole numbers of five digits or more with Indian thousands separators, as the lists show them ("50,000 capsules");
  *  a number with decimals, or part of a code or date, stays as written. */
 export const grouped = (text: string) => text.replace(/(?<![\w.,/-])\d{5,}(?![\w.,/-]|\.\d)/g, (n) => Number(n).toLocaleString('en-IN'));
 
@@ -67,11 +67,13 @@ export function earlierRefs(doc: MasterDoc, si: number, ti: number): RefOption[]
 }
 
 export const HEADER_LABEL: Record<(typeof HEADER_VALUES)[number], { label: string; kind: Kind }> = {
-  batchSize: { label: 'the batch size (tablets)', kind: 'count' },
-  coreWeight: { label: 'the theoretical core tablet weight', kind: 'mass' },
-  coatedWeight: { label: 'the theoretical coated tablet weight', kind: 'mass' },
-  coreBatch: { label: 'the theoretical core batch weight', kind: 'mass' },
+  batchSize: { label: 'the batch size (capsules)', kind: 'count' },
+  fillWeight: { label: 'the theoretical fill weight per capsule', kind: 'mass' },
+  coatedWeight: { label: 'the theoretical coated weight per capsule', kind: 'mass' },
+  fillBatch: { label: 'the theoretical fill batch weight', kind: 'mass' },
   coatedBatch: { label: 'the theoretical coated batch weight', kind: 'mass' },
+  shellWeight: { label: 'the mean empty shell weight (hard) or wet gel mass per capsule (soft gel)', kind: 'mass' },
+  filledWeight: { label: 'the theoretical filled capsule weight (fill + shell)', kind: 'mass' },
 };
 
 export const stepTitle = (doc: MasterDoc, t: Step, j?: number) => `${j === undefined ? '' : `${j + 1}. `}${title(doc, t)}`;
@@ -186,7 +188,7 @@ export function dispensingRoomChoices(md: Pick<MasterData, 'rooms' | 'equipment'
     groups: [{ label: 'Rooms with a weighing balance', options: near }, { label: 'Other rooms', options: codes.filter((c) => !near.includes(c)) }] };
 }
 
-/** The products of master data this product makes: those whose dosage form names it (tablets), and none without one;
+/** The products of master data this product makes: those whose dosage form names it (capsules), and none without one;
  *  of those, the bulk products (TrueBatch Capsules) or the packs (Packing), plus those master data gives no kind yet. */
 export const ownProducts = <P extends { dosageForm: string | null; kind?: 'bulk' | 'pack' | null }>(products: readonly P[], kind: 'bulk' | 'pack'): P[] =>
   products.filter((p) => p.dosageForm?.toLowerCase().includes(product.dosageForm) && (p.kind ?? kind) === kind);

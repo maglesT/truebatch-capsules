@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api.js';
 import { createMaster, getVersion, STATE_LABEL, type MasterData, type MasterRow } from '../api-designer.js';
-import { masterSchema, type MasterDoc } from '../../../shared/master/schema.js';
+import { isSoftGel, masterSchema, SHELL_TYPES, type MasterDoc } from '../../../shared/master/schema.js';
 import { batchWeight } from './example.js';
 import { dispensingRoomChoices, grouped, ownProducts, scaleDoc } from './model.js';
 import { packingStages, SKELETON_LIST, skeletonStages } from './skeletons.js';
@@ -18,7 +18,9 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
   const rooms = dispensingRoomChoices(md);
   const [picking, setPicking] = useState(!header.productItemId);
   const set = (k: keyof Header, v: string) => onChange({ ...header, [k]: v });
-  const core = batchWeight({ header } as MasterDoc, /^\d+(\.\d+)?$/.test(header.coreWeightMg) && /^[1-9]\d*$/.test(header.batchSize) ? header.coreWeightMg : undefined);
+  const soft = isSoftGel(header);
+  const shellLabel = soft ? 'Wet gel mass (mg per capsule)' : 'Mean empty shell weight (mg)';
+  const core = batchWeight({ header } as MasterDoc, /^\d+(\.\d+)?$/.test(header.fillWeightMg) && /^[1-9]\d*$/.test(header.batchSize) ? header.fillWeightMg : undefined);
   return (
     <div className="header-fields">
       <div>
@@ -37,15 +39,27 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
         )}
       </div>
       <div className="form-grid">
-        <label>Batch size (tablets)<Decimal label="Batch size (tablets)" value={header.batchSize} onChange={(v) => set('batchSize', v)} width={9} /></label>
-        <label>Theoretical core weight (mg per tablet)<Decimal label="Theoretical core weight (mg per tablet)" value={header.coreWeightMg} onChange={(v) => set('coreWeightMg', v)} /></label>
-        <label>Theoretical coated weight (mg per tablet)
-          <Decimal label="Theoretical coated weight (mg per tablet)" placeholder="uncoated" value={header.coatedWeightMg}
+        <label>Batch size (capsules)<Decimal label="Batch size (capsules)" value={header.batchSize} onChange={(v) => set('batchSize', v)} width={9} /></label>
+        <label>Theoretical fill weight (mg per capsule)<Decimal label="Theoretical fill weight (mg per capsule)" value={header.fillWeightMg} onChange={(v) => set('fillWeightMg', v)} /></label>
+        <label>Theoretical coated weight (mg per capsule)
+          <Decimal label="Theoretical coated weight (mg per capsule)" placeholder="uncoated" value={header.coatedWeightMg}
             onChange={(v) => onChange(v ? { ...header, coatedWeightMg: v } : (({ coatedWeightMg: _, ...h }) => h)(header))} />
         </label>
-        <label>Die bore area (mm², tooling record)<Decimal label="Die bore area" placeholder="not given" value={header.dieAreaMm2}
-          onChange={(v) => onChange(v ? { ...header, dieAreaMm2: v } : (({ dieAreaMm2: _, ...h }) => h)(header))} /></label>
-        <div className="calc-note">{core?.ok ? <>Theoretical core batch weight: <b>{grouped(core.shown)}</b></> : <span className="muted">The core batch weight shows once the batch size and core weight are set.</span>}</div>
+        {/* TC-01: the shell; TC-24: a US OTC two-piece hard capsule is sealed. */}
+        <label>Shell type
+          <select aria-label="Shell type" value={header.shellType ?? ''}
+            onChange={(e) => onChange(e.target.value ? { ...header, shellType: e.target.value as NonNullable<Header['shellType']> } : (({ shellType: _, ...h }) => h)(header))}>
+            <option value="">not chosen</option>
+            {SHELL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        {!soft && <label>Shell size<input aria-label="Shell size" placeholder="e.g. 0, 1, 00el" value={header.shellSize ?? ''} size={6}
+          onChange={(e) => onChange(e.target.value ? { ...header, shellSize: e.target.value } : (({ shellSize: _, ...h }) => h)(header))} /></label>}
+        <label>{shellLabel}<Decimal label={shellLabel} value={header.shellWeightMg}
+          onChange={(v) => onChange(v ? { ...header, shellWeightMg: v } : (({ shellWeightMg: _, ...h }) => h)(header))} /></label>
+        {!soft && <label className="check"><input type="checkbox" checked={!!header.usOtc}
+          onChange={(e) => onChange(e.target.checked ? { ...header, usOtc: true } : (({ usOtc: _, ...h }) => h)(header))} /> US OTC: the capsules are sealed</label>}
+        <div className="calc-note">{core?.ok ? <>Theoretical fill batch weight: <b>{grouped(core.shown)}</b></> : <span className="muted">The fill batch weight shows once the batch size and fill weight are set.</span>}</div>
       </div>
       {/* TC-11: a balance is offered in these rooms or in a room the stage allows. */}
       <ChipSet label="Dispensing rooms (where the materials are weighed)" values={header.dispensingRooms ?? []} options={rooms.options} groups={rooms.groups} text={rooms.text}
@@ -55,11 +69,11 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
   );
 }
 
-/** Other strengths compressed from the same blend: each checked for its API per tablet against its label claim. */
+/** Other strengths compressed from the same blend: each checked for its API per capsule against its label claim. */
 function OtherStrengths({ header, onChange }: { header: Header; onChange: (h: Header) => void }) {
   const list = header.otherStrengths ?? [];
   const put = (next: typeof list) => onChange(next.length ? { ...header, otherStrengths: next } : (({ otherStrengths: _, ...h }) => h)(header));
-  const set = (n: number, k: 'name' | 'labelClaim' | 'coreWeightMg', v: string) => put(list.map((x, i) => (i === n ? { ...x, [k]: v } : x)));
+  const set = (n: number, k: 'name' | 'labelClaim' | 'fillWeightMg', v: string) => put(list.map((x, i) => (i === n ? { ...x, [k]: v } : x)));
   return (
     <fieldset className="checklist">
       <legend>Other strengths from the same blend</legend>
@@ -67,11 +81,11 @@ function OtherStrengths({ header, onChange }: { header: Header; onChange: (h: He
         <div className="form-grid" key={n}>
           <label>Strength<input aria-label={`Strength ${n + 1}`} value={x.name} onChange={(e) => set(n, 'name', e.target.value)} /></label>
           <label>Label claim<input aria-label={`Label claim ${n + 1}`} placeholder="e.g. 50 mg" value={x.labelClaim} onChange={(e) => set(n, 'labelClaim', e.target.value)} /></label>
-          <label>Core weight (mg)<Decimal label={`Core weight ${n + 1}`} value={x.coreWeightMg} onChange={(v) => set(n, 'coreWeightMg', v)} /></label>
+          <label>Fill weight (mg)<Decimal label={`Fill weight ${n + 1}`} value={x.fillWeightMg} onChange={(v) => set(n, 'fillWeightMg', v)} /></label>
           <button type="button" className="link" onClick={() => put(list.filter((_, i) => i !== n))}>Remove</button>
         </div>
       ))}
-      <button type="button" className="link" onClick={() => put([...list, { name: '', labelClaim: '', coreWeightMg: '' }])}>Add a strength</button>
+      <button type="button" className="link" onClick={() => put([...list, { name: '', labelClaim: '', fillWeightMg: '' }])}>Add a strength</button>
     </fieldset>
   );
 }
@@ -82,10 +96,10 @@ type Start = { kind: 'empty' } | { kind: 'skeleton'; id: string } | { kind: 'cop
 export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
   md: MasterData; masters: MasterRow[]; copyOf?: MasterRow; onCreated: (id: number) => void; onCancel: () => void;
 }) {
-  // A new tablet master starts with no dispensing rooms: the author picks them (the rooms with a weighing balance are
+  // A new capsule master starts with no dispensing rooms: the author picks them (the rooms with a weighing balance are
   // listed first); every room of an area called Dispensing could be a segregated block's booth. A copy: those it names.
   const [header, setHeader] = useState<Header>({
-    ...(copyOf?.header ?? { productItemId: '', productCode: '', productName: '', batchSize: '', coreWeightMg: '' }) });
+    ...(copyOf?.header ?? { productItemId: '', productCode: '', productName: '', batchSize: '', fillWeightMg: '' }) });
   const skeletons = product.packing ? [{ id: 'packing', name: 'Packing record', text: 'Issue to the line, packing with the checks alongside the line, reconciliation and line clearance after, for this pack.' }] : SKELETON_LIST;
   const [start, setStart] = useState<Start>(copyOf ? { kind: 'copy', versionId: copyOf.id } : { kind: 'skeleton', id: skeletons[0]!.id });
   // A packing master: the pack (TC-P1), copied with the master it is copied from.
@@ -98,7 +112,7 @@ export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
     void getVersion(start.versionId).then((v) => {
       setSource(v.doc);
       if (v.doc.pack) setPack(v.doc.pack);
-      setHeader((h) => ({ ...h, coreWeightMg: h.coreWeightMg || v.doc.header.coreWeightMg, batchSize: h.batchSize || v.doc.header.batchSize,
+      setHeader((h) => ({ ...h, fillWeightMg: h.fillWeightMg || v.doc.header.fillWeightMg, batchSize: h.batchSize || v.doc.header.batchSize,
         ...(v.doc.header.coatedWeightMg && !h.coatedWeightMg ? { coatedWeightMg: v.doc.header.coatedWeightMg } : {}) }));
     });
   }, [start.kind === 'copy' ? start.versionId : 0]);
@@ -112,7 +126,7 @@ export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
     const parsed = masterSchema.safeParse(doc);
     if (!header.productItemId) return setError('Pick the product.');
     if (pack && !pack.bulkItemId) return setError('Pick the bulk product.');
-    if (!parsed.success) return setError(parsed.error.issues.map((i) => `${i.path.at(-1) === 'batchSize' ? 'Batch size' : i.path.at(-1) === 'coreWeightMg' ? 'Core weight' : i.path.join('.')}: ${i.message}`).join('; '));
+    if (!parsed.success) return setError(parsed.error.issues.map((i) => `${i.path.at(-1) === 'batchSize' ? 'Batch size' : i.path.at(-1) === 'fillWeightMg' ? 'Fill weight' : i.path.join('.')}: ${i.message}`).join('; '));
     setBusy(true);
     try {
       onCreated((await createMaster(parsed.data)).id);
@@ -138,13 +152,13 @@ export function NewMaster({ md, masters, copyOf, onCreated, onCancel }: {
             <span>A copy of another master<small>Formula and process are copied; typed batch quantities scale to the new batch size.</small></span></label>
           {start.kind === 'copy' && (
             <select aria-label="Master to copy" value={start.versionId} onChange={(e) => { setStart({ kind: 'copy', versionId: Number(e.target.value) }); }}>
-              {masters.map((m) => <option key={m.id} value={m.id}>{m.header.productCode} {m.header.productName} · {grouped(m.header.batchSize)} tablets · version {m.versionNo} ({STATE_LABEL[m.state]})</option>)}
+              {masters.map((m) => <option key={m.id} value={m.id}>{m.header.productCode} {m.header.productName} · {grouped(m.header.batchSize)} capsules · version {m.versionNo} ({STATE_LABEL[m.state]})</option>)}
             </select>
           )}
           <label className="check route"><input type="radio" name="start" checked={start.kind === 'empty'} onChange={() => setStart({ kind: 'empty' })} />
             <span>Empty<small>No formula and no stages yet.</small></span></label>
         </fieldset>
-        {scaled && <p className="notice small">Copy to a new batch size: {grouped(source!.header.batchSize)} → {grouped(header.batchSize)} tablets. Quantities per tablet stay; typed batch quantities in the steps scale.</p>}
+        {scaled && <p className="notice small">Copy to a new batch size: {grouped(source!.header.batchSize)} → {grouped(header.batchSize)} capsules. Quantities per capsule stay; typed batch quantities in the steps scale.</p>}
         {error && <p className="error">{error}</p>}
         <div className="actions">
           <button type="button" onClick={onCancel}>Cancel</button>

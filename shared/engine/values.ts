@@ -4,7 +4,7 @@
  */
 import { Dec, findUnit, type Outcome, type Q, type ResultValue } from '../templates/index.js';
 import { findBlock, type Block, type BlockField } from '../blocks/index.js';
-import type { FormulaLine, Limit, MasterDoc, Pack, SettingValue, Step } from '../master/schema.js';
+import type { FormulaLine, HEADER_VALUES, Limit, MasterDoc, Pack, SettingValue, Step } from '../master/schema.js';
 import { callTemplate } from './templates.js';
 import { keyId, type StepEvent, type StepKey } from './state.js';
 import type { Source } from './links.js';
@@ -17,7 +17,7 @@ export type Value = { value: string; unit: string } | { value: string; unit: str
 export type Stored = ({ ok: true; value: string; unit: string; shown: string; check?: { pass: boolean; level: string; shown: string } } & Record<string, unknown>) | { ok: false; message: string };
 export const store = (o: Outcome<object>): Stored => JSON.parse(JSON.stringify(o)) as Stored;
 // A result passed on as an input: its full value, written with at least 3 decimals for the worked line (only zeros
-// are added, nothing is rounded); a whole count (tablets, packs) stays whole: "4920 packs", not "4920.000 packs".
+// are added, nothing is rounded); a whole count (capsules, packs) stays whole: "4920 packs", not "4920.000 packs".
 const exact = (v: Dec | string, unit: string): Q => {
   const d = new Dec(v);
   return { value: d.toFixed(findUnit(unit)?.kind === 'count' && d.isInteger() ? 0 : Math.max(d.decimalPlaces(), 3)), unit };
@@ -138,22 +138,24 @@ function refValue(doc: MasterDoc, events: readonly StepEvent[], here: StepKey, r
   return name in c.values ? c.values[name] : c.results[name] ? asQ(c.results[name]) : undefined;
 }
 
-const tablets = (doc: MasterDoc) => `${doc.header.batchSize} tablets`;
-const perBatch = (mg: string, doc: MasterDoc) => callTemplate('T8', { mode: 'per unit', perUnit: `${mg} mg`, count: tablets(doc), unit: 'kg' });
+const capsules = (doc: MasterDoc) => `${doc.header.batchSize} capsules`;
+const perBatch = (mg: string, doc: MasterDoc) => callTemplate('T8', { mode: 'per unit', perUnit: `${mg} mg`, count: capsules(doc), unit: 'kg' });
 
 /** The pack facts a packing block's calculations read as "$pack.name" (shared/blocks/format.ts PACK_FACTS). */
 export function packFacts(p: Pack): Record<string, string> {
-  return Object.fromEntries(Object.entries({ unitsPerPack: `${p.unitsPerPack} tablets`, packsPerCarton: `${p.packsPerCarton} packs`, shelfLifeMonths: String(p.shelfLifeMonths),
+  return Object.fromEntries(Object.entries({ unitsPerPack: `${p.unitsPerPack} capsules`, packsPerCarton: `${p.packsPerCarton} packs`, shelfLifeMonths: String(p.shelfLifeMonths),
     expiryRule: p.expiryRule, type: p.type, destination: p.destination, gtin: p.gtin, mrp: p.mrp }).filter(([, v]) => v !== undefined).map(([k, v]) => [`pack.${k}`, v!]));
 }
 
-/** A header value: as written, or the batch weight (T8: weight per tablet × batch size). */
-export function headerValue(doc: MasterDoc, h: 'batchSize' | 'coreWeight' | 'coatedWeight' | 'coreBatch' | 'coatedBatch'): string | Stored {
-  const { coreWeightMg: core, coatedWeightMg: coated } = doc.header;
-  if (h === 'batchSize') return tablets(doc);
-  if (h === 'coreWeight') return `${core} mg`;
-  if (h === 'coreBatch') return store(perBatch(core, doc));
-  if (coated === undefined) return { ok: false, message: 'The master has no coated tablet weight' };
+/** A header value: as written, or the batch weight (T8: weight per capsule × batch size). */
+export function headerValue(doc: MasterDoc, h: (typeof HEADER_VALUES)[number]): string | Stored {
+  const { fillWeightMg: core, coatedWeightMg: coated, shellWeightMg: shell } = doc.header;
+  if (h === 'shellWeight') return `${shell} mg`;
+  if (h === 'filledWeight') return `${new Dec(core).plus(shell ?? '0').toString()} mg`;
+  if (h === 'batchSize') return capsules(doc);
+  if (h === 'fillWeight') return `${core} mg`;
+  if (h === 'fillBatch') return store(perBatch(core, doc));
+  if (coated === undefined) return { ok: false, message: 'The master has no coated capsule weight' };
   return h === 'coatedWeight' ? `${coated} mg` : store(perBatch(coated, doc));
 }
 
@@ -171,12 +173,12 @@ function recordedAdjusted(doc: MasterDoc, events: readonly StepEvent[], here: St
 }
 
 /**
- * A formula line's batch quantity: T8 (mg per tablet × batch size), then, when adjusted, the line's adjustments in
+ * A formula line's batch quantity: T8 (mg per capsule × batch size), then, when adjusted, the line's adjustments in
  * order: T11 salt factor, T9 potency (with the lot's assay, water, LOD from this step) or T18 content, T16 overage,
  * or T10 for a filler that compensates other lines. The worked lines are joined.
  */
 export function lineQuantity(doc: MasterDoc, events: readonly StepEvent[], here: StepKey, line: FormulaLine, adjusted: boolean, values: Record<string, Value>, uses: number[] = []): Stored {
-  let q: Outcome<object> = perBatch(line.mgPerTablet, doc);
+  let q: Outcome<object> = perBatch(line.mgPerCapsule, doc);
   const shown: string[] = [];
   const next = (o: Outcome<object>) => { if (q.ok) shown.push(q.shown); q = o; };
   const a = adjusted ? line.adjust : undefined;
@@ -200,7 +202,7 @@ export function lineQuantity(doc: MasterDoc, events: readonly StepEvent[], here:
   return r.ok && shown.length ? { ...r, shown: [...shown, r.shown].join('; then ') } : r;
 }
 const perBatchQ = (doc: MasterDoc, l: FormulaLine | undefined) => {
-  const r = l ? store(perBatch(l.mgPerTablet, doc)) : undefined;
+  const r = l ? store(perBatch(l.mgPerCapsule, doc)) : undefined;
   return r ? asQ(r) : undefined;
 };
 

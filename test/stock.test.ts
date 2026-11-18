@@ -34,8 +34,8 @@ beforeAll(async () => {
     provider = connect(TEST_DATABASE_URL, { role: PACKING_APP_ROLE, link: true });
     return links({ mms: provider }, { mms: MMS });
   }, PACKING);
-  t.master.products_.push({ ...item('pk-1', 'PK-001', 'Examplol 100 mg tablets, 10 x 10 blister'), strength: '100 mg', dosageForm: 'tablet' },
-    { ...item('prd-1', 'PRD-001', 'Examplol 100 mg tablets'), strength: '100 mg', dosageForm: 'tablet' });
+  t.master.products_.push({ ...item('pk-1', 'PK-001', 'Examplol 100 mg capsules, 10 x 10 blister'), strength: '100 mg', dosageForm: 'capsule' },
+    { ...item('prd-1', 'PRD-001', 'Examplol 100 mg capsules'), strength: '100 mg', dosageForm: 'capsule' });
   for (const m of packing().pack!.materials) t.master.materials_.push({ ...item(m.materialItemId, m.code, m.name), category: 'packing', unit: m.unit === 'units' ? 'nos' : m.unit });
   t.master.equipment_.push({ ...item('ln-1', 'BL-01', 'Blister line 1'), kind: 'equipment', type: 'blister line', room: 'PK-01' },
     { ...item('ln-2', 'BL-02', 'Blister line 2'), kind: 'equipment', type: 'blister line', room: 'PK-02' });
@@ -59,7 +59,7 @@ async function batch(line: string) {
   const mv = (res.json() as { id: number }).id;
   for (const s of ['in_review', 'approved', 'effective']) await t.owner`update master_versions set state = ${s} where id = ${mv}`;
   const b = await as('issuer', 'POST', '/api/batches', { masterVersionId: mv, proof: proofFor('issuer'),
-    values: { line, ...handLabels('line', 'machine'), bulk: 'TB260001', tablets: '100000', mfgDate: '2026-11-03', 'bulk.released': 'yes', 'bulk.product': 'yes' } });
+    values: { line, ...handLabels('line', 'machine'), bulk: 'TB260001', capsules: '100000', mfgDate: '2026-11-03', 'bulk.released': 'yes', 'bulk.product': 'yes' } });
   expect(b.statusCode, b.body).toBe(200);
   const id = (b.json() as { id: number }).id;
   expect((await as('op1', 'POST', `/api/batches/${id}/steps/0.1.0.1/record`, { values: { received: 'yes' } })).statusCode).toBe(200);
@@ -118,11 +118,11 @@ describe('a packing material lot is not issued beyond what MMS shows available',
 
   it('TC-21 what a terminated batch gave back to stores is available again (owner, 16 Nov 2026)', async () => {
     const b = (await as('qa1', 'GET', `/api/batches/${first}`)).json() as { batch: { contentHash: string; issued: object[] } };
-    // The bulk tablets issued to it first (what went back of them can be issued again: bulkLeft), then its lots.
-    expect(b.batch.issued).toEqual([{ lot: 'TB260001', material: 'bulk PRD-001 · Examplol 100 mg tablets', value: '100000', unit: 'tablets' },
+    // The bulk capsules issued to it first (what went back of them can be issued again: bulkLeft), then its lots.
+    expect(b.batch.issued).toEqual([{ lot: 'TB260001', material: 'bulk PRD-001 · Examplol 100 mg capsules', value: '100000', unit: 'capsules' },
       { lot: 'CTN-1', material: expect.stringMatching(/^PM-103 /), value: '600', unit: 'nos' }]);
     const r = await as('qa1', 'POST', `/api/batches/${first}/terminate`, { proof: proofFor('qa1'), contentHash: b.batch.contentHash, reason: 'Line down',
-      returns: [{ lot: 'TB260001', value: '100000', unit: 'tablets' }, { lot: 'CTN-1', value: '200', unit: 'nos' }] });
+      returns: [{ lot: 'TB260001', value: '100000', unit: 'capsules' }, { lot: 'CTN-1', value: '200', unit: 'nos' }] });
     expect(r.statusCode, r.body).toBe(200);
     // 1000 in stock less 400 still used by the terminated batch: 600 available for the other one.
     expect((await record(second, { lot: 'CTN-1', issued: '601', matches: 'yes' })).json()).toMatchObject({ problems: [expect.stringMatching(/^Lot CTN-1 has 600 nos available in MMS \(1000 nos in stock less 400 nos already used/)] });
@@ -160,8 +160,8 @@ describe('a packing material lot is not issued beyond what MMS shows available',
     expect(returnProblems([], [])).toEqual([]);
   });
 
-  it('packing (bug fix, 17 Nov 2026): what is left of a bulk batch is its good tablets less the other packing batches\' issues, net of what a terminated one gave back; a part issue up to it', () => {
-    const others = [{ batchNo: 'TP260001', tablets: '30000', returned: null }, { batchNo: 'TP260002', tablets: '10000', returned: '4000' }, { batchNo: 'TP260003', tablets: '5000', returned: '5000' }];
+  it('packing (bug fix, 17 Nov 2026): what is left of a bulk batch is its good capsules less the other packing batches\' issues, net of what a terminated one gave back; a part issue up to it', () => {
+    const others = [{ batchNo: 'TP260001', capsules: '30000', returned: null }, { batchNo: 'TP260002', capsules: '10000', returned: '4000' }, { batchNo: 'TP260003', capsules: '5000', returned: '5000' }];
     const left = bulkLeft('48000', others);
     expect(left).toEqual({ issued: '36000', left: '12000' });
     expect(bulkLeft('48000', [])).toEqual({ issued: '0', left: '48000' });
@@ -169,9 +169,9 @@ describe('a packing material lot is not issued beyond what MMS shows available',
     expect(bulkIssueProblem('TB260001', null, '48000', left)).toBeNull();
     expect(bulkIssueProblem('TB260001', '12000', '48000', left)).toBeNull();
     expect(bulkIssueProblem('TB260001', '5000', '48000', left)).toBeNull();
-    expect(bulkIssueProblem('TB260001', '12001', '48000', left)).toBe('Only 12000 tablets of bulk batch TB260001 are left to issue (48000 good tablets, 36000 already issued to other packing batches): issue 12000 or less.');
-    expect(bulkIssueProblem('TB260001', '0', '48000', left)).toBe('Bulk tablets issued: give more than 0 tablets.');
-    expect(bulkIssueProblem('TB260001', null, '30000', bulkLeft('30000', others))).toBe('All 30000 good tablets of bulk batch TB260001 are already issued to other packing batches: nothing is left to issue.');
+    expect(bulkIssueProblem('TB260001', '12001', '48000', left)).toBe('Only 12000 capsules of bulk batch TB260001 are left to issue (48000 good capsules, 36000 already issued to other packing batches): issue 12000 or less.');
+    expect(bulkIssueProblem('TB260001', '0', '48000', left)).toBe('Bulk capsules issued: give more than 0 capsules.');
+    expect(bulkIssueProblem('TB260001', null, '30000', bulkLeft('30000', others))).toBe('All 30000 good capsules of bulk batch TB260001 are already issued to other packing batches: nothing is left to issue.');
   });
 
   it('a quantity field shows master data\'s name for the same unit (nos for units), never another unit', () => {

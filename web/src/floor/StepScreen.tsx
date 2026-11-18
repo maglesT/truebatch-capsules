@@ -23,7 +23,7 @@ type Dialog = { kind: 'done' | 'repeat' | 'check' | 'na' | 'send-back' | 'note' 
 const INVOLVING = ['started', 'value', 'done', 'corrected', 'not_applicable'];
 const same = (a: StepRow['key'], b: StepRow['key']) => a.stage === b.stage && a.sub === b.sub && a.step === b.step;
 
-// The value at the end of a worked line ("10.0 mg × 100000 tablets = 1.000 kg" → "1.000 kg").
+// The value at the end of a worked line ("10.0 mg × 100000 capsules = 1.000 kg" → "1.000 kg").
 const endOf = (r: Stored) => (r.ok ? /=\s*([^=;]+)$/.exec(r.shown)?.[1]?.trim() ?? `${r.value} ${r.unit}` : '');
 
 /**
@@ -35,7 +35,7 @@ function settingsText(doc: BatchDetail['master']['doc'], block: Block, st: Step,
     const v = st.settings[s.name];
     const m = v && typeof v === 'object' && 'formula' in v ? materialLines(doc).find((l) => l.key === v.formula) : undefined;
     const what = m && `${m.code} · ${m.name}${'perPack' in m ? ` (${m.kind}, ${perPackText(m, mdUnit)})` : ''}`;
-    if (m && s.kind === 'quantity' && 'mgPerTablet' in m && typeof v === 'object' && 'formula' in v) {
+    if (m && s.kind === 'quantity' && 'mgPerCapsule' in m && typeof v === 'object' && 'formula' in v) {
       // Worked out by the server once a value is recorded; before that, the batch quantity (an adjusted one needs the lot).
       const r = row.results[s.name] ?? (v.adjusted ? undefined : lineQuantity(doc, [], row.key, m, false, {}));
       return [[s.label, r?.ok ? `${endOf(r)} of ${what}` : `${what}: worked out with the lot's certificate values`]];

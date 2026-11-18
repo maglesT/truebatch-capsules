@@ -3,7 +3,7 @@ import {
   currentValues, doneProblems, evaluate, openSteps, parseKey, refusal, stepLabel, stepState, stepTitle, timers,
   type Action, type State, type StepEvent,
 } from '../shared/engine/index.js';
-import { at, ev, fail, pass, reading, small, tablet } from './engine-fixture.js';
+import { at, ev, fail, pass, reading, small, capsule } from './engine-fixture.js';
 
 const kinds = (s: string) => s.split(' ').filter(Boolean).map((k) => ev(k as StepEvent['kind'], '0.1.0.1'));
 const stateOf = (doc: ReturnType<typeof small>, events: StepEvent[], id: string, now = at(1000)) => {
@@ -144,7 +144,7 @@ describe('openSteps', () => {
   it('sub-batch: N numbered copies run side by side; the stage closes when all are done', () => {
     const doc = small([{ kind: 'sub-batch', count: 3 }, {}]);
     const ids = openSteps(doc, [], at(0)).steps.map((s) => `${s.id} ${s.state}`);
-    expect(ids).toEqual(['0.1.0.1 open', '0.2.0.1 open', '0.3.0.1 open', '1.1.0.1 waiting']);
+    expect(ids).toEqual(['0.1.0.1 open', '0.2.0.1 open', '0.3.0.1 open', '1.1.0.1 waiting', '2.1.0.1 waiting', '2.1.1.1 waiting']);
     const two = ['0.1.0.1', '0.2.0.1'].flatMap((k) => [ev('started', k), ev('done', k)]);
     expect(stateOf(doc, two, '1.1.0.1')).toBe('waiting');
     expect(stateOf(doc, [...two, ev('started', '0.3.0.1'), ev('done', '0.3.0.1')], '1.1.0.1')).toBe('open');
@@ -283,13 +283,13 @@ describe('timers', () => {
 });
 
 describe('calculations come from the templates library', () => {
-  const doc = tablet();
+  const doc = capsule();
   const certificate = { assay: { value: '99.0', unit: '%' }, lod: { value: '0.5', unit: '%' } };
 
   it('the API target is the potency-adjusted formula quantity (T8 then T9); net (T1) against it (C1)', () => {
     const r = evaluate(doc, [], { stage: 1, sub: 1, step: 0, round: 1 }, { ...certificate, gross: { value: '12.000', unit: 'kg' }, tare: { value: '1.850', unit: 'kg' } });
     // 100.0 mg × 100 000 = 10.000 kg; assay as is 99.0 × 99.5 ÷ 100 = 98.505 %; 10.000 × 100 ÷ 98.505 = 10.1518 kg
-    expect(r.target).toMatchObject({ ok: true, unit: 'kg', shown: '100.0 mg × 100000 tablets = 10.000 kg; then assay as is = 99.0 % × (100 − 0.5 %) ÷ 100 = 98.505 %; 10.000 kg × 100 ÷ 98.505 % = 10.152 kg' });
+    expect(r.target).toMatchObject({ ok: true, unit: 'kg', shown: '100.0 mg × 100000 capsules = 10.000 kg; then assay as is = 99.0 % × (100 − 0.5 %) ÷ 100 = 98.505 %; 10.000 kg × 100 ÷ 98.505 % = 10.152 kg' });
     expect(r.net).toMatchObject({ ok: true, value: '10.15', shown: '12.000 kg − 1.850 kg = 10.150 kg' });
     expect(r.netCheck).toMatchObject({ ok: true, check: { pass: true } });
   });
@@ -310,7 +310,7 @@ describe('calculations come from the templates library', () => {
     expect(Number((evaluate(doc, events, lactose, {}).target as { value: string }).value).toFixed(3)).toBe('11.848');
   });
 
-  it('a setting can refer to an earlier step: the coating gain is on the mean core weight of compression (T5)', () => {
+  it('a setting can refer to an earlier step: the coating gain is on the mean fill weight of compression (T5)', () => {
     const compress = { weights: Array.from({ length: 20 }, () => ({ value: '250.0', unit: 'mg' })) };
     const r1 = evaluate(doc, [], { stage: 2, sub: 1, step: 0, round: 1 }, compress);
     const events = [ev('value', '2.1.0.1', { payload: { values: compress, results: r1 } })];
@@ -320,7 +320,7 @@ describe('calculations come from the templates library', () => {
 });
 
 describe('corrections reach the steps that used the value', () => {
-  const doc = tablet();
+  const doc = capsule();
   const weights = (mg: string) => ({ weights: Array.from({ length: 20 }, () => ({ value: mg, unit: 'mg' })) });
   const compress = { stage: 2, sub: 1, step: 0, round: 1 };
   const coat = { stage: 3, sub: 1, step: 0, round: 1 };
@@ -342,7 +342,7 @@ describe('corrections reach the steps that used the value', () => {
 
   it.each<[string, StepEvent[], string, boolean, number]>([
     ['nothing changed since', coated, 'done', false, 0],
-    ['the mean core weight was corrected after the coating used it', corrected, 'in_progress', true, 1],
+    ['the mean fill weight was corrected after the coating used it', corrected, 'in_progress', true, 1],
     ['a correction before the coating used it', [...compressed, fix(compressed, 'corrected')], 'waiting', false, 0],
   ])('TC-06 %s → coating %s, sign again %s, %d input change(s)', (_what, events, state, resign, changes) => {
     const v = coatView(events);
@@ -425,7 +425,7 @@ describe('yield accountability (T4)', () => {
     ['with accountability limits', true],
     ['without accountability limits', false],
   ])('TC-18 yield and accountability are worked out %s; the limits only add the check', (_what, limits) => {
-    const doc = tablet();
+    const doc = capsule();
     if (!limits) delete doc.stages[2]!.steps[1]!.settings.accountabilityLimit;
     const r = evaluate(doc, [], key, values);
     // (24.500 + 0.200 + 0.100) ÷ 25.000 × 100 = 99.20 %; yield 24.500 ÷ 25.000 × 100 = 98.00 %
@@ -437,7 +437,7 @@ describe('yield accountability (T4)', () => {
 
 describe('steps as people name them', () => {
   it('a step is named by the master, or by its block and material; a waiting step names the step it waits for, never its key', () => {
-    const doc = tablet();
+    const doc = capsule();
     expect(stepTitle(doc, doc.stages[1]!.steps[0]!)).toBe('Weigh a material: Examplol');
     expect(stepLabel(doc, { stage: 1, sub: 1, step: 4, round: 2 })).toBe('Granulation › Dry to an LOD limit (round 2)');
     const named = small([{ steps: [{ name: 'Punch and die check — before compression', checker: true }, {}] }]);

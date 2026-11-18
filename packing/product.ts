@@ -1,9 +1,9 @@
 import type { Product } from '../server/product.js';
 
-// TrueBatch Capsules Packing: the packing batch record, from the RELEASED bulk tablets of TrueBatch Capsules to QA
+// TrueBatch Capsules Packing: the packing batch record, from the RELEASED bulk capsules of TrueBatch Capsules to QA
 // release of the packed batch. Its permissions are its own (the platform's code format allows no "-"); the app reads
 // each as the TrueBatch code of the same thing (server/product.ts). QC approves the packed batch (the finished packed
-// product tested and complies, with the QC report number) before QA releases it, as for tablets (owner, 15 Nov 2026).
+// product tested and complies, with the QC report number) before QA releases it, as for capsules (owner, 15 Nov 2026).
 export const PACKING: Product = {
   id: 'truebatch_capsules_packing',
   name: 'TrueBatch Capsules Packing',

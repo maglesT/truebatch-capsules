@@ -24,7 +24,7 @@ export function Preview({ doc: raw }: { doc: MasterDoc }) {
   const doc = parsed.data;
   const rows = dispensing(doc, lots);
   const adjusted = doc.formula.filter((l) => l.adjust && (l.adjust.potency || l.adjust.content));
-  const core = batchWeight(doc, doc.header.coreWeightMg);
+  const core = batchWeight(doc, doc.header.fillWeightMg);
   const coated = batchWeight(doc, doc.header.coatedWeightMg);
   const yields = doc.stages.flatMap((s, si) => s.steps.flatMap((t, ti) => {
     if (findBlock(t.block)?.gmp !== 'yield') return [];
@@ -50,7 +50,7 @@ export function Preview({ doc: raw }: { doc: MasterDoc }) {
         ) : <p className="muted">No material is adjusted for its lot: the dispensing quantities are the batch quantities.</p>}
       </div>
       <div className="card">
-        <h2>Dispensing quantities for {Number(doc.header.batchSize).toLocaleString('en-IN')} tablets</h2>
+        <h2>Dispensing quantities for {Number(doc.header.batchSize).toLocaleString('en-IN')} capsules</h2>
         <div className="table-wrap">
           <table className="plain-table">
             <thead><tr><th>Material</th><th>Batch quantity</th><th>To dispense</th><th>Worked out</th></tr></thead>

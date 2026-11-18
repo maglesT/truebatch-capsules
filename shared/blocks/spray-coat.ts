@@ -6,7 +6,7 @@ import type { Block } from './format.js';
 export const sprayCoat: Block = {
   id: 'spray-coat', version: 1, name: 'Coat with periodic spray checks', checker: false, stop: 'gain',
   periodic: { maxMinutes: 30 },
-  instruction: 'Record the inlet and product temperatures, the spray rate, the atomising air pressure and the pan speed. Weigh 20 tablets and record their mean weight.',
+  instruction: 'Record the inlet and product temperatures, the spray rate, the atomising air pressure and the pan speed. Weigh 20 capsules and record their mean weight.',
   fields: [
     { name: 'machine', label: 'Coater', kind: 'machine', types: ['coat'] },
     { name: 'inletTemp', label: 'Inlet temperature', kind: 'number', unit: '°C' },
@@ -14,7 +14,7 @@ export const sprayCoat: Block = {
     { name: 'sprayRate', label: 'Spray rate', kind: 'number', unit: 'g/min' },
     { name: 'airPressure', label: 'Atomising air pressure', kind: 'number', unit: 'bar' },
     { name: 'speed', label: 'Pan speed', kind: 'number', unit: 'rpm' },
-    { name: 'meanWeight', label: 'Mean weight of coated tablets', kind: 'number', unit: 'mg' },
+    { name: 'meanWeight', label: 'Mean weight of coated capsules', kind: 'number', unit: 'mg' },
   ],
   settings: [
     { name: 'coreWeight', label: 'Weight before this coat', kind: 'quantity' },

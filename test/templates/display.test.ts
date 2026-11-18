@@ -4,7 +4,7 @@ import { shownNumber } from '../../shared/templates/core.js';
 import { checkLimit } from '../../shared/templates/rounding.js';
 import { t10Compensating, t16Overage } from '../../shared/templates/dispensing.js';
 import { workedExample } from '../../web/src/designer/example.js';
-import { tablet } from '../engine-fixture.js';
+import { capsule } from '../engine-fixture.js';
 import { ok } from './helpers.js';
 
 // The display rule of worked lines: full precision inside, readable figures on the screen and in the batch record.
@@ -56,7 +56,7 @@ describe('worked-line numbers (shownNumber)', () => {
   });
 
   it('no worked line of the fixture master shows a number with more than 4 decimals (all blocks, example values)', () => {
-    const d = tablet();
+    const d = capsule();
     const long: string[] = [];
     d.stages.forEach((s, si) => s.steps.forEach((_, ti) => {
       for (const r of Object.values(workedExample(d, si, ti).results)) if (r.ok && /\d\.\d{5,}/.test(r.shown)) long.push(r.shown);

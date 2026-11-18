@@ -87,10 +87,10 @@ export function batchRecordDoc(r: RecordInput, by: string, printedAt = new Date(
     { text: runs(`${h.productCode} · ${h.productName}`), fontSize: 11, margin: [0, 2, 0, 8] },
     { table: { widths: [90, '*', 90, '*', 90, '*'], body: [
       [th('Product'), small(`${h.productCode} · ${h.productName}`), th('Batch no.'), small(r.batch.batchNo, { bold: true }), th('Status'), small(statusWords(view.status, !!doc.pack, true), { bold: true })],
-      doc.pack ? [th('Pack'), small(`${doc.pack.type}, ${doc.pack.unitsPerPack} tablets per pack, ${doc.pack.packsPerCarton} packs per carton; ${doc.pack.destination}${doc.pack.mrp ? `, MRP Rs. ${doc.pack.mrp}` : ''}`),
-        th('Bulk'), small(`${doc.pack.bulkCode} · batch ${valueText(facts?.values.bulk)} · ${valueText(facts?.values.tablets)} issued · line ${valueText(facts?.values.line)}${facts?.results.expiry?.ok ? ` · ${facts.results.expiry.shown}` : ''}`),
+      doc.pack ? [th('Pack'), small(`${doc.pack.type}, ${doc.pack.unitsPerPack} capsules per pack, ${doc.pack.packsPerCarton} packs per carton; ${doc.pack.destination}${doc.pack.mrp ? `, MRP Rs. ${doc.pack.mrp}` : ''}`),
+        th('Bulk'), small(`${doc.pack.bulkCode} · batch ${valueText(facts?.values.bulk)} · ${valueText(facts?.values.capsules)} issued · line ${valueText(facts?.values.line)}${facts?.results.expiry?.ok ? ` · ${facts.results.expiry.shown}` : ''}`),
         th('Master version'), small(`version ${r.versionNo}`)]
-        : [th('Batch size'), small(`${Number(h.batchSize).toLocaleString('en-IN')} tablets`), th('Core tablet weight'), small(`${h.coreWeightMg} mg${h.coatedWeightMg ? ` (coated ${h.coatedWeightMg} mg)` : ''}`), th('Master version'), small(`version ${r.versionNo}`)],
+        : [th('Batch size'), small(`${Number(h.batchSize).toLocaleString('en-IN')} capsules`), th('Core capsule weight'), small(`${h.fillWeightMg} mg${h.coatedWeightMg ? ` (coated ${h.coatedWeightMg} mg)` : ''}`), th('Master version'), small(`version ${r.versionNo}`)],
       [th('Issued'), small(`${r.issuedByName}, ${plant(r.batch.issuedAt)}`), th('Times'), small('plant time (IST)'), th('Changed values'), small('marked CHANGED; the original is struck through, with the reason', { color: RED })],
     ] }, layout: 'lightHorizontalLines' },
     ...(endedText ? [small(endedText, { bold: true, color: RED, margin: [0, 6, 0, 0] })] : []),
@@ -112,10 +112,10 @@ export function batchRecordDoc(r: RecordInput, by: string, printedAt = new Date(
 
   // The formula, with the lots and the quantities dispensed (the weighing steps that name the line).
   if (!doc.pack) content.push(heading('Formula'));
-  if (!doc.pack) content.push(table([150, 90, 55, 80, '*'], ['Material', 'Role · place', 'mg per tablet', 'Batch quantity', 'Lots and dispensed quantities'], doc.formula.map((l) => {
+  if (!doc.pack) content.push(table([150, 90, 55, 80, '*'], ['Material', 'Role · place', 'mg per capsule', 'Batch quantity', 'Lots and dispensed quantities'], doc.formula.map((l) => {
     const q = lineQuantity(doc, [], { stage: 0, sub: 1, step: 0, round: 1 }, l, false, {});
     const weighed = steps.filter((v) => Object.values(stepOf(v).settings).some((s) => typeof s === 'object' && 'formula' in s && s.formula === l.key && findBlock(stepOf(v).block)?.gmp === 'weighing'));
-    return [small(`${l.code} · ${l.name}`), small(`${ROLE[l.role] ?? l.role} · ${PLACE[l.place] ?? l.place}`), small(l.mgPerTablet), small(endOf(q)),
+    return [small(`${l.code} · ${l.name}`), small(`${ROLE[l.role] ?? l.role} · ${PLACE[l.place] ?? l.place}`), small(l.mgPerCapsule), small(endOf(q)),
       small(weighed.map((v) => {
         const net = v.results.net;
         if (!net) return `${notYet('weighed')} · ${stepName(v)}`;

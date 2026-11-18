@@ -1,5 +1,5 @@
 // Screen 3: the formula. One row per material picked from master data (the product's materials first), mg per
-// tablet, role, place and the batch quantity worked out; the adjustment panel for the selected line; live totals.
+// capsule, role, place and the batch quantity worked out; the adjustment panel for the selected line; live totals.
 import { useState } from 'react';
 import type { MasterData, MasterRow } from '../api-designer.js';
 import type { Problem } from '../../../shared/master/checks.js';
@@ -12,8 +12,8 @@ import { Decimal, Order, Picker } from './ui.js';
 
 type Adjust = NonNullable<FormulaLine['adjust']>;
 const HERE = { stage: 0, sub: 1, step: 0, round: 1 };
-const PLACES = [['intragranular', 'Intragranular'], ['extragranular', 'Extragranular'], ['binder', 'Binder solution'], ['coating:1', 'Coating layer 1'], ['coating:2', 'Coating layer 2'], ['coating:3', 'Coating layer 3']] as const;
-const total = (lines: FormulaLine[]) => { const r = t2Total({ values: lines.map((l) => `${l.mgPerTablet || '0'} mg`), unit: 'mg' }); return r.ok ? r.value : null; };
+const PLACES = [['intragranular', 'Intragranular'], ['extragranular', 'Extragranular'], ['binder', 'Binder solution'], ['shell', 'Shell (empty shell or gel mass)'], ['coating:1', 'Coating layer 1'], ['coating:2', 'Coating layer 2'], ['coating:3', 'Coating layer 3']] as const;
+const total = (lines: FormulaLine[]) => { const r = t2Total({ values: lines.map((l) => `${l.mgPerCapsule || '0'} mg`), unit: 'mg' }); return r.ok ? r.value : null; };
 
 export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, problems, onAnswer }: {
   doc: MasterDoc; onChange: (d: MasterDoc) => void; md: MasterData; masters: MasterRow[]; selected?: number; onSelect: (i?: number) => void; problems: Problem[]; onAnswer?: OnAnswer;
@@ -24,33 +24,36 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
   const put = (i: number, l: FormulaLine) => set(lines.map((x, j) => (j === i ? l : x)));
   const linked = [...new Set(masters.filter((m) => m.header.productItemId === doc.header.productItemId).flatMap((m) => m.materialIds))];
   const valid = (mg: string) => /^\d+(\.\d+)?$/.test(mg);
-  const core = lines.filter((l) => l.place !== 'coating' && l.role !== 'solvent');
+  const core = lines.filter((l) => l.place !== 'coating' && l.place !== 'shell' && l.role !== 'solvent');
   const coat = lines.filter((l) => l.place === 'coating');
-  const coreTotal = core.every((l) => valid(l.mgPerTablet)) ? total(core) : null;
-  const coatTotal = coat.every((l) => valid(l.mgPerTablet)) ? total(coat) : null;
-  const gain = doc.header.coatedWeightMg && valid(doc.header.coatedWeightMg) && valid(doc.header.coreWeightMg) ? new Dec(doc.header.coatedWeightMg).minus(doc.header.coreWeightMg) : null;
+  const shell = lines.filter((l) => l.place === 'shell');
+  const coreTotal = core.every((l) => valid(l.mgPerCapsule)) ? total(core) : null;
+  const coatTotal = coat.every((l) => valid(l.mgPerCapsule)) ? total(coat) : null;
+  const shellTotal = shell.every((l) => valid(l.mgPerCapsule)) ? total(shell) : null;
+  const shellWeight = doc.header.shellWeightMg && valid(doc.header.shellWeightMg) ? new Dec(doc.header.shellWeightMg) : null;
+  const gain = doc.header.coatedWeightMg && valid(doc.header.coatedWeightMg) && valid(doc.header.fillWeightMg) ? new Dec(doc.header.coatedWeightMg).minus(doc.header.fillWeightMg) : null;
   const sel = selected === undefined ? undefined : lines[selected];
 
   return (
     <>
       <div className="card">
-        <div className="d-section-head"><h2>Formula</h2><span className="muted small">Quantities per tablet; the batch quantity is worked out for {grouped(doc.header.batchSize)} tablets.</span></div>
+        <div className="d-section-head"><h2>Formula</h2><span className="muted small">Quantities per capsule; the batch quantity is worked out for {grouped(doc.header.batchSize)} capsules.</span></div>
         <div className="table-wrap">
           <table className="plain-table formula-table">
-            <thead><tr><th>Material</th><th>mg per tablet</th><th>Role</th><th>Place</th><th>Batch quantity</th><th>Adjustment</th><th /></tr></thead>
+            <thead><tr><th>Material</th><th>mg per capsule</th><th>Role</th><th>Place</th><th>Batch quantity</th><th>Adjustment</th><th /></tr></thead>
             <tbody>
               {lines.map((l, i) => {
                 const bad = problems.some((p) => p.path.startsWith(`formula[${i}]`) && p.level === 'error');
                 return (
                   <tr key={l.key} className={selected === i ? 'sel' : bad ? 'bad-row' : ''} onClick={() => onSelect(i)}>
                     <td><b>{l.code}</b><span className="cell-sub">{l.name}</span></td>
-                    <td><Decimal label={`mg per tablet of ${l.name}`} value={l.mgPerTablet} onChange={(v) => put(i, { ...l, mgPerTablet: v })} /></td>
+                    <td><Decimal label={`mg per capsule of ${l.name}`} value={l.mgPerCapsule} onChange={(v) => put(i, { ...l, mgPerCapsule: v })} /></td>
                     <td><select aria-label={`Role of ${l.name}`} value={l.role} onChange={(e) => put(i, { ...l, role: e.target.value as FormulaLine['role'] })}>
                       <option value="api">API</option><option value="excipient">Excipient</option><option value="solvent">Removed in processing (solvent, processing aid)</option></select></td>
                     <td><select aria-label={`Place of ${l.name}`} value={l.place === 'coating' ? `coating:${l.layer ?? 1}` : l.place}
                       onChange={(e) => { const [place, layer] = e.target.value.split(':'); const { layer: _, ...rest } = l; put(i, { ...rest, place: place as FormulaLine['place'], ...(layer ? { layer: Number(layer) } : {}) }); }}>
                       {PLACES.map(([v, t]) => <option key={v} value={v}>{t}</option>)}</select></td>
-                    <td className="nowrap num">{valid(l.mgPerTablet) && /^[1-9]\d*$/.test(doc.header.batchSize) ? qtyText(lineQuantity(doc, [], HERE, l, false, {})) : '—'}</td>
+                    <td className="nowrap num">{valid(l.mgPerCapsule) && /^[1-9]\d*$/.test(doc.header.batchSize) ? qtyText(lineQuantity(doc, [], HERE, l, false, {})) : '—'}</td>
                     <td><button type="button" className="link dark" onClick={(e) => { e.stopPropagation(); onSelect(i); }}>{adjustSummary(l.adjust)}</button></td>
                     <td><Order index={i} count={lines.length} what={l.name} onMove={(by) => set(move(lines, i, by))} onRemove={() => { set(lines.filter((_, j) => j !== i)); onSelect(undefined); }} /></td>
                   </tr>
@@ -61,15 +64,16 @@ export function FormulaTable({ doc, onChange, md, masters, selected, onSelect, p
           </table>
         </div>
         <div className="totals">
-          <Total label="Core materials" value={coreTotal} target={valid(doc.header.coreWeightMg) ? new Dec(doc.header.coreWeightMg) : null} what="the theoretical core weight" />
-          {(coat.length > 0 || doc.header.coatedWeightMg) && <Total label="Coating" value={coatTotal} target={gain} what="the weight gain (coated − core weight)" />}
+          <Total label="Fill materials" value={coreTotal} target={valid(doc.header.fillWeightMg) ? new Dec(doc.header.fillWeightMg) : null} what="the theoretical fill weight" />
+          {(coat.length > 0 || doc.header.coatedWeightMg) && <Total label="Coating" value={coatTotal} target={gain} what="the weight gain (coated − fill weight)" />}
+          {(shell.length > 0 || shellWeight) && <Total label="Shell" value={shellTotal} target={shellWeight} what={doc.header.shellType === 'soft gelatin' ? 'the wet gel mass per capsule' : 'the mean empty shell weight'} />}
         </div>
         {adding ? (
           <div className="add-box">
             <Picker label="Material" first={linked} firstLabel={`Materials of ${doc.header.productCode} in other masters`}
               items={md.materials.map((m) => ({ id: m.itemId, code: m.code, name: m.name, note: m.category ?? undefined, off: !m.active ? 'inactive' : lines.some((l) => l.materialItemId === m.itemId) ? 'in the formula' : undefined }))}
               onPick={(m) => {
-                const line: FormulaLine = { key: newKey(m.code, lines.map((l) => l.key)), materialItemId: m.id, code: m.code, name: m.name, mgPerTablet: '', role: 'excipient', place: 'intragranular' };
+                const line: FormulaLine = { key: newKey(m.code, lines.map((l) => l.key)), materialItemId: m.id, code: m.code, name: m.name, mgPerCapsule: '', role: 'excipient', place: 'intragranular' };
                 set([...lines, line]); onSelect(lines.length); setAdding(false);
               }} />
             <div className="actions"><button type="button" onClick={() => setAdding(false)}>Close</button></div>
@@ -193,7 +197,7 @@ function AdjustPanel({ doc, line, onChange, problems, onAnswer }: { doc: MasterD
       <fieldset className="checklist">
         <legend>As written in the source (checked, never used)</legend>
         <div className="form-grid">
-          {line.role === 'api' && <label>Label claim per tablet<input aria-label="Label claim per tablet" placeholder="e.g. 20 mg or 10 mEq" value={line.labelClaim ?? ''} onChange={(e) => field('labelClaim', e.target.value)} /></label>}
+          {line.role === 'api' && <label>Label claim per capsule<input aria-label="Label claim per capsule" placeholder="e.g. 20 mg or 10 mEq" value={line.labelClaim ?? ''} onChange={(e) => field('labelClaim', e.target.value)} /></label>}
           <label>Batch quantity<input aria-label="Batch quantity as written" placeholder="e.g. 120.000 kg" value={line.batchQuantity ?? ''} onChange={(e) => field('batchQuantity', e.target.value)} /></label>
         </div>
       </fieldset>

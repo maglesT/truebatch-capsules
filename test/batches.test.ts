@@ -4,7 +4,7 @@ import { batchRecordDoc } from '../server/batch-record.js';
 import { recordLate } from '../server/late.js';
 import { loadBatch, recordInput } from '../server/routes/batches.js';
 import { call, freshApp, handLabels, login, proofFor, seedUser, type TestApp } from './helpers.js';
-import { small, tablet } from './engine-fixture.js';
+import { small, capsule } from './engine-fixture.js';
 import { findBlock } from '../shared/blocks/index.js';
 import { machineRefusal, roomRefusal } from '../shared/engine/picks.js';
 
@@ -18,12 +18,12 @@ const item = (itemId: string, c: string, name: string) => ({ itemId, code: c, na
 
 beforeAll(async () => {
   t = await freshApp();
-  t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated tablets'), strength: '100 mg', dosageForm: 'tablet' });
-  for (const l of tablet().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
+  t.master.products_.push({ ...item('prd-1', 'PRD-001', 'Examplol 100 mg film-coated capsules'), strength: '100 mg', dosageForm: 'capsule' });
+  for (const l of capsule().formula) t.master.materials_.push({ ...item(l.materialItemId, l.code, l.name), category: null, unit: 'kg' });
   t.master.equipment_.push(
     { ...item('eq-bal', 'BAL-01', 'Balance 60 kg'), kind: 'instrument', type: 'balance', room: 'DSP-01' },
     { ...item('eq-str', 'STR-01', 'Stirrer'), kind: 'equipment', type: 'stirrer', room: 'GRN-01' },
-    { ...item('eq-prs', 'PRS-01', 'Tablet press'), kind: 'equipment', type: 'tablet press', room: 'CMP-01' },
+    { ...item('eq-cf', 'CF-01', 'Capsule filling machine'), kind: 'equipment', type: 'capsule filling machine', room: 'CF-01' },
   );
   const people = {
     author: ['truebatch_capsules.master.author', 'truebatch_capsules.view'], issuer: ['truebatch_capsules.batch.issue'], viewer: ['truebatch_capsules.view'],
@@ -38,7 +38,7 @@ beforeAll(async () => {
 afterAll(() => t.close());
 
 const as = (who: string, method: 'GET' | 'POST' | 'PUT', url: string, body?: object) => call(t.app, cookies[who]!, method as 'GET', url, body);
-async function effectiveMaster(change?: (d: ReturnType<typeof tablet>) => void, doc = tablet()) {
+async function effectiveMaster(change?: (d: ReturnType<typeof capsule>) => void, doc = capsule()) {
   change?.(doc);
   const res = await as('author', 'POST', '/api/masters', { doc });
   expect(res.statusCode).toBe(200);
@@ -80,10 +80,10 @@ const recordText = async (id: number) => pdfText(batchRecordDoc(await recordInpu
 
 describe('master versions', () => {
   it('a new master is version 1, a draft; the draft can be changed and checked', async () => {
-    const res = await as('author', 'POST', '/api/masters', { doc: tablet() });
+    const res = await as('author', 'POST', '/api/masters', { doc: capsule() });
     const { id, versionNo } = res.json() as { id: number; versionNo: number };
     expect(versionNo).toBe(1);
-    const doc = tablet();
+    const doc = capsule();
     doc.header.batchSize = '50000';
     expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc })).statusCode).toBe(200);
     expect(((await as('viewer', 'GET', `/api/master-versions/${id}`)).json() as { doc: typeof doc }).doc.header.batchSize).toBe('50000');
@@ -94,16 +94,16 @@ describe('master versions', () => {
   });
 
   it('PL-08 the product and materials must be active in master data', async () => {
-    const doc = tablet();
+    const doc = capsule();
     doc.formula[0]!.materialItemId = 'nowhere';
     expect((await as('author', 'POST', '/api/masters', { doc })).statusCode).toBe(409);
   });
 
   it('only a draft is editable: a version out of draft is locked by the database', async () => {
-    const { id, masterId } = (await as('author', 'POST', '/api/masters', { doc: tablet() })).json() as { id: number; masterId: number };
+    const { id, masterId } = (await as('author', 'POST', '/api/masters', { doc: capsule() })).json() as { id: number; masterId: number };
     expect((await as('author', 'POST', `/api/masters/${masterId}/versions`, {})).statusCode).toBe(409);
     await t.owner`update master_versions set state = 'in_review' where id = ${id}`;
-    expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: tablet() })).json()).toMatchObject({ error: 'locked' });
+    expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: capsule() })).json()).toMatchObject({ error: 'locked' });
     expect(await code(t.sql`update master_versions set doc = '{}' where id = ${id}`)).toBe('P0001');
     await t.owner`update master_versions set state = 'approved' where id = ${id}`;
     expect(await code(t.owner`update master_versions set state = 'draft' where id = ${id}`)).toBe('P0001');
@@ -126,7 +126,7 @@ describe('issuing a batch', () => {
   });
 
   it('only an effective master version is issued, and only with the issue permission', async () => {
-    const { id } = (await as('author', 'POST', '/api/masters', { doc: tablet() })).json() as { id: number };
+    const { id } = (await as('author', 'POST', '/api/masters', { doc: capsule() })).json() as { id: number };
     expect((await as('issuer', 'POST', '/api/batches', { masterVersionId: id, proof: proofFor('issuer') })).json()).toMatchObject({ error: 'not_effective' });
     expect((await as('asha', 'POST', '/api/batches', { masterVersionId: id, proof: proofFor('asha') })).statusCode).toBe(403);
     const bad = await effectiveMaster((d) => { d.stages[1]!.steps[0]!.checker = false; });
@@ -168,7 +168,7 @@ describe('walking a stage', () => {
     const later = await issue(await effectiveMaster());
     const r = (await as('asha', 'GET', `/api/batches/${later.id}/previous-use?item=eq-bal`)).json() as { previous: { batchNo: string; text: string } | null };
     const first = ((await as('asha', 'GET', `/api/batches/${id}`)).json() as { batch: { batchNo: string } }).batch.batchNo;
-    expect(r.previous).toMatchObject({ batchNo: first, text: `PRD-001 · Examplol 100 mg film-coated tablets, batch ${first}` });
+    expect(r.previous).toMatchObject({ batchNo: first, text: `PRD-001 · Examplol 100 mg film-coated capsules, batch ${first}` });
     // Nothing used it before the first batch: typed by hand.
     expect(((await as('asha', 'GET', `/api/batches/${id}/previous-use?item=eq-bal`)).json() as { previous: unknown }).previous).toBeNull();
   });
@@ -201,8 +201,8 @@ describe('walking a stage', () => {
     expect((await act('viewer', id, '1.1.0.1', 'note', { text: 'x' })).statusCode).toBe(403);
     expect((await act('asha', id, '9.1.0.1', 'start')).json()).toMatchObject({ error: 'no_such_step' });
     await act('asha', id, '1.1.0.1', 'start');
-    const press = await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-prs', gross: 'heavy' } });
-    expect(press.json()).toMatchObject({ error: 'invalid_values', problems: ['PRS-01 is not a balance (master data: tablet press)', 'Gross weight: type a number, e.g. "50.300"'] });
+    const press = await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-cf', gross: 'heavy' } });
+    expect(press.json()).toMatchObject({ error: 'invalid_values', problems: ['CF-01 is not a balance (master data: capsule filling machine)', 'Gross weight: type a number, e.g. "50.300"'] });
     await act('asha', id, '1.1.0.1', 'record', { values: { lot: 'API-2611', ...handLabels('lot', 'lot'), balance: 'eq-bal', ...handLabels('balance', 'machine'), assay: '99.0', lod: '0.5', gross: '11.000', tare: '0.850' } });
     const stale = await act('asha', id, '1.1.0.1', 'done', { proof: proofFor('asha'), contentHash: '0'.repeat(64) });
     expect(stale.json()).toMatchObject({ error: 'content_changed' });
@@ -211,11 +211,11 @@ describe('walking a stage', () => {
   it('TC-11 a machine not active in master data, or of a type the stage does not allow, is refused', async () => {
     t.master.equipment_.push({ ...item('eq-old', 'BAL-09', 'Old balance'), active: false, kind: 'instrument', type: 'balance', room: 'DSP-01' });
     expect((await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-old' } })).json()).toMatchObject({ error: 'inactive_item' });
-    expect((await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-prs' } })).json()).toMatchObject({ error: 'invalid_values' });
+    expect((await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-cf' } })).json()).toMatchObject({ error: 'invalid_values' });
   });
 
   it('TC-11 a machine field takes only the type it asks for, in a room the stage allows; a room only of the stage\'s areas or rooms', () => {
-    const stage = { ...tablet().stages[1]!, machineTypes: ['Balance', 'Vessel'], roomTypes: ['Granulation', 'DSP-01'] };
+    const stage = { ...capsule().stages[1]!, machineTypes: ['Balance', 'Vessel'], roomTypes: ['Granulation', 'DSP-01'] };
     const balance = findBlock({ id: 'weigh', version: 1 })!.fields.find((f) => f.name === 'balance')!;
     const rooms = [{ code: 'GRN-01', area: 'Granulation' }, { code: 'DSP-01', area: 'Dispensing' }, { code: 'QCL-02', area: 'QC laboratory' }, { code: 'BL-GRN', area: 'Beta-lactam' }];
     const m = (code: string, type: string, room: string | null) => machineRefusal(stage, balance, { code, type, room }, rooms, ['DSP-01']);
@@ -224,8 +224,8 @@ describe('walking a stage', () => {
     expect(m('SPV-01', 'Vessel', 'GRN-01')).toBe('SPV-01 is not a balance (master data: Vessel)');
     expect(m('BAL-06', 'Balance', 'QCL-02')).toBe('BAL-06 stands in QCL-02 (QC laboratory), a laboratory area: weigh with a balance of a dispensing room of the master or of a room this stage allows');
     expect(m('BAL-07', 'Balance', 'BL-GRN')).toBe('BAL-07 stands in BL-GRN, neither in a dispensing room of the master nor in a room this stage allows (Granulation, DSP-01)');
-    const press = findBlock({ id: 'compress', version: 1 })!.fields.find((f) => f.name === 'machine')!;
-    expect(machineRefusal(stage, press, { code: 'PRS-01', type: 'Tablet press', room: 'GRN-01' }, rooms)).toBe('PRS-01 is not one of the machine types this stage allows (Balance, Vessel)');
+    const filler = findBlock({ id: 'capsule-fill', version: 1 })!.fields.find((f) => f.name === 'machine')!;
+    expect(machineRefusal(stage, filler, { code: 'CF-01', type: 'Capsule filling machine', room: 'GRN-01' }, rooms)).toBe('CF-01 is not one of the machine types this stage allows (Balance, Vessel)');
     expect(rooms.map((r) => roomRefusal(stage, r))).toEqual([null, null, 'QCL-02 is not one of the rooms this stage allows (Granulation, DSP-01)', 'BL-GRN is not one of the rooms this stage allows (Granulation, DSP-01)']);
   });
 
@@ -286,7 +286,7 @@ describe('walking a stage', () => {
 
   it('TC-22 the batch record PDF shows the corrected value struck through with its reason, the worked lines, limits, notes and who did what', async () => {
     const text = await recordText(id);
-    expect(text).toMatch(/^TrueBatch Capsules · Batch record TC\d{6} · PRD-001 Examplol 100 mg film-coated tablets/);
+    expect(text).toMatch(/^TrueBatch Capsules · Batch record TC\d{6} · PRD-001 Examplol 100 mg film-coated capsules/);
     expect(text).toContain('Status | In production');
     expect(text).toContain('Changed values | marked CHANGED');
     expect(text).toContain('Tare weight: 0.849 kg  CHANGED');
@@ -334,23 +334,34 @@ describe('production approval, QC approval and QA release', () => {
   const batchAct = (who: string, action: string, body: object) => as(who, 'POST', `/api/batches/${id}/${action}`, body);
   const batchSign = async (who: string, action: string, extra: object = {}) => batchAct(who, action, { proof: proofFor(who), contentHash: (await full()).batch.contentHash, ...extra });
   beforeAll(async () => {
-    t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
-    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' });
+    t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'capsule' });
+    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
     // One pH check and the stage yield, checked by a second person.
     const doc = small([{ steps: [{}, { block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '0.100 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' } } }] }]);
     id = (await issue(await effectiveMaster(undefined, doc))).id;
   });
 
   it('TC-20 production cannot sign while anything in the record is open', async () => {
-    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ error: 'not_ready', problems: ['Stage 0 › Check a value against limits: pH is not started', 'Stage 0 › Stage yield is not started', 'Stage Stage 0 is not closed'] });
+    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ error: 'not_ready', problems: ['Stage 0 › Check a value against limits: pH is not started', 'Stage 0 › Stage yield is not started',
+      'Filling › Fill capsules with periodic checks (round 1) is not started', 'Filling › Stage yield is not started', 'Stage Stage 0 is not closed', 'Stage Filling is not closed'] });
     await act('asha', id, '0.1.0.1', 'start');
     await act('asha', id, '0.1.0.1', 'record', { values: { reading: '6.0' } });
     expect((await sign('asha', id, '0.1.0.1', 'done')).statusCode).toBe(200);
     await act('asha', id, '0.1.1.1', 'start');
     await act('asha', id, '0.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
     expect((await sign('asha', id, '0.1.1.1', 'done')).statusCode).toBe(200);
-    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ problems: ['Stage 0 › Stage yield is waiting for its check', 'Stage Stage 0 is not closed'] });
+    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ problems: ['Stage 0 › Stage yield is waiting for its check', 'Filling › Fill capsules with periodic checks (round 1) is not started', 'Filling › Stage yield is not started', 'Stage Stage 0 is not closed', 'Stage Filling is not closed'] });
     expect((await sign('ravi', id, '0.1.1.1', 'check')).statusCode).toBe(200);
+    // TC-15: the capsules are filled with one round of fill-weight checks, then the filling yield.
+    await act('asha', id, '1.1.0.1', 'start');
+    expect((await act('asha', id, '1.1.0.1', 'record', { values: { machine: 'eq-cf', ...handLabels('machine', 'machine'), weights: Array(20).fill('175.0'), length: Array(5).fill('19.4'), appearance: 'yes', rejected: '0', fillingDone: 'yes' } })).statusCode).toBe(200);
+    expect((await sign('asha', id, '1.1.0.1', 'done')).statusCode).toBe(200);
+    // The filler typed by hand (the Logbook link is off): a second person checks it (TC-08).
+    expect((await sign('ravi', id, '1.1.0.1', 'check')).statusCode).toBe(200);
+    await act('asha', id, '1.1.1.1', 'start');
+    await act('asha', id, '1.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
+    expect((await sign('asha', id, '1.1.1.1', 'done')).statusCode).toBe(200);
+    expect((await sign('ravi', id, '1.1.1.1', 'check')).statusCode).toBe(200);
     expect((await full()).batch).toMatchObject({ status: 'manufacturing complete', open: [] });
   });
 
@@ -396,7 +407,7 @@ describe('production approval, QC approval and QA release', () => {
     const r = (await as('viewer', 'GET', `/api/batches/${id}/review`)).json() as { status: string; deviations: unknown[]; signatures: { meaning: string; printedName: string }[] };
     expect(r.status).toBe('released');
     expect(r.deviations).toMatchObject([{ reference: 'DEV-26-010', open: false, closed: { personName: 'MEERA' } }]);
-    expect(r.signatures.map((x) => `${x.meaning} ${x.printedName}`)).toEqual(['issued ISSUER', 'performed ASHA', 'performed ASHA', 'verified RAVI', 'production_approved SAM', 'qc_approved QUINN', 'released MEERA']);
+    expect(r.signatures.map((x) => `${x.meaning} ${x.printedName}`)).toEqual(['issued ISSUER', 'performed ASHA', 'performed ASHA', 'verified RAVI', 'performed ASHA', 'verified RAVI', 'performed ASHA', 'verified RAVI', 'production_approved SAM', 'qc_approved QUINN', 'released MEERA']);
   });
 
   it('TC-22 the batch record PDF is produced, with the QC report, the release decision and every signature with its meaning', async () => {

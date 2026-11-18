@@ -110,8 +110,8 @@ describe('demo skip through the server', () => {
 
   beforeAll(async () => {
     t = await freshApp(undefined, CAPSULES, true);
-    t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'tablet' });
-    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' });
+    t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'capsule' });
+    t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
     const people = { author: ['truebatch_capsules.master.author'], issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.demo.skip'],
       ravi: ['truebatch_capsules.batch.operate'], meera: ['truebatch_capsules.qa.release'] } as const;
     for (const [name, perms] of Object.entries(people)) {
@@ -174,7 +174,7 @@ describe('demo skip through the server', () => {
     expect(await demoSkipCommand(CAPSULES, ['TB260001'], { TRUEBATCH_DEMO: '1' }, () => {})).toBe(1);
     const b = await issue();
     expect(await skipWaits(t.sql, b.batchNo, undefined, 'nobody')).toEqual({ error: 'There is no person nobody here: they sign in once first.' });
-    expect(await skipWaits(t.sql, b.batchNo, 'packing', 'asha')).toEqual({ error: `Batch ${b.batchNo} has no stage packing: 1 s0 (Stage 0).` });
+    expect(await skipWaits(t.sql, b.batchNo, 'packing', 'asha')).toEqual({ error: `Batch ${b.batchNo} has no stage packing: 1 s0 (Stage 0), 2 fill (Filling).` });
     expect(await skipWaits(t.sql, b.batchNo, 'Stage 0', 'asha')).toEqual({ skipped: ['Minimum time of “Check a value against limits: pH” (30 min)'] });
     expect(await skipWaits(t.sql, b.batchNo, undefined, 'asha')).toEqual({ skipped: [] });
   });

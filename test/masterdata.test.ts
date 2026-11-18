@@ -11,7 +11,7 @@ let cookie: string;
 const base = (code: string, active = true) => ({ itemId: randomUUID(), code, name: `Name ${code}`, version: 1, active });
 beforeAll(async () => {
   t = await freshApp();
-  t.master.products_.push({ ...base('PRD-001'), strength: '500 mg', dosageForm: 'tablet' });
+  t.master.products_.push({ ...base('PRD-001'), strength: '500 mg', dosageForm: 'capsule' });
   t.master.materials_.push({ ...base('MAT-001'), category: 'API', unit: 'kg' }, { ...base('MAT-002', false), category: 'excipient', unit: 'kg' });
   t.master.equipment_.push({ ...base('RMG-01'), kind: 'equipment', type: 'rapid mixer granulator', room: 'GRN-01' });
   t.master.rooms_.push({ ...base('GRN-01'), area: 'granulation', grade: 'D' });

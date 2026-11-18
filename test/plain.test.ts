@@ -6,7 +6,7 @@ import { c1WithinLimits, c3AllIndividual } from '../shared/templates/series.js';
 import { c6StagedTest } from '../shared/templates/staged.js';
 
 // The headline of a result says the calc's own value (owner's confirmation run, 17 Nov 2026), rounded as its worked
-// line rounds it; counts are named (tablets, locations), not "units".
+// line rounds it; counts are named (capsules, locations), not "units".
 
 describe('headline', () => {
   it('a worked line of several parts: the part that comes to the value, not the first part', () => {
@@ -36,16 +36,16 @@ describe('headline', () => {
 describe('count words and the mean', () => {
   const weights = ['600.1', '600.2', '600.3', '600.4', '600.3', '600.47'].map((v) => ({ value: v, unit: 'mg' }));
   it('C3: the units named, the mean to the decimals of its limit (else 1 decimal)', () => {
-    const r = c3AllIndividual({ readings: weights, band: { plusMinusPercent: '5.0', of: 'mean' }, noun: 'tablets' });
-    expect(r.ok && r.shown).toMatch(/^6 tablets; 0 outside ± 5\.0 % of the mean 600\.3 mg/);
+    const r = c3AllIndividual({ readings: weights, band: { plusMinusPercent: '5.0', of: 'mean' }, noun: 'capsules' });
+    expect(r.ok && r.shown).toMatch(/^6 capsules; 0 outside ± 5\.0 % of the mean 600\.3 mg/);
     const two = c3AllIndividual({ readings: weights, band: { plusMinusPercent: '5.0', of: 'mean' }, meanLimit: { low: '570.00', high: '630.00', unit: 'mg' } });
     expect(two.ok && two.shown).toMatch(/^6 units; .* the mean 600\.30 mg/);
-    const out = c3AllIndividual({ readings: [...weights, { value: '700', unit: 'mg' }], band: { plusMinusPercent: '5.0', of: 'mean' }, noun: 'tablets' });
-    expect(out.ok && out.shown).toContain('(outside: tablet 7)');
+    const out = c3AllIndividual({ readings: [...weights, { value: '700', unit: 'mg' }], band: { plusMinusPercent: '5.0', of: 'mean' }, noun: 'capsules' });
+    expect(out.ok && out.shown).toContain('(outside: capsule 7)');
   });
 
-  it('C6 disintegration: the tablets named', () => {
-    const r = c6StagedTest({ test: 'disintegration', maxTime: '15', noun: 'tablets', stages: [['5', '6', '7', '8', '9', '10']] });
-    expect(r.ok && r.shown).toBe('All 6 tablets disintegrated within 15 min: PASS');
+  it('C6 disintegration: the capsules named', () => {
+    const r = c6StagedTest({ test: 'disintegration', maxTime: '15', noun: 'capsules', stages: [['5', '6', '7', '8', '9', '10']] });
+    expect(r.ok && r.shown).toBe('All 6 capsules disintegrated within 15 min: PASS');
   });
 });

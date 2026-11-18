@@ -1,5 +1,5 @@
 // Starts TrueBatch Capsules Packing with its built UI on a fresh schema of the test database, for its browser journey,
-// with a stand-in for TrueBatch Capsules' batch_fact_v1 (two released bulk batches, with their good tablets). Master data is an in-memory stand-in.
+// with a stand-in for TrueBatch Capsules' batch_fact_v1 (two released bulk batches, with their good capsules). Master data is an in-memory stand-in.
 // The Logbook's equipment_status_v1 is stood in too, knowing line BL-01 only (dirty); its link is down (no grant) until
 // the journey grants it for its pick-list check (e2e/packing.spec.ts).
 import { connect } from '../server/db.js';
@@ -36,9 +36,9 @@ await schemaOwner.end();
 const master = fakeMaster();
 const item = (itemId: string, code: string, name: string) => ({ itemId, code, name, version: 1, active: true });
 // Master data's kind: the pack and the bulk it is packed from; PRD-002 has no kind yet (offered in both lists).
-master.products_.push({ ...item('pk-1', 'PK-001', 'Examplol 100 mg tablets, 10 x 10 blister'), strength: '100 mg', dosageForm: 'tablet', kind: 'pack' },
-  { ...item('prd-1', 'PRD-001', 'Examplol 100 mg tablets'), strength: '100 mg', dosageForm: 'tablet', kind: 'bulk' },
-  { ...item('prd-2', 'PRD-002', 'Examplol 200 mg tablets'), strength: '200 mg', dosageForm: 'tablet' });
+master.products_.push({ ...item('pk-1', 'PK-001', 'Examplol 100 mg capsules, 10 x 10 blister'), strength: '100 mg', dosageForm: 'capsule', kind: 'pack' },
+  { ...item('prd-1', 'PRD-001', 'Examplol 100 mg capsules'), strength: '100 mg', dosageForm: 'capsule', kind: 'bulk' },
+  { ...item('prd-2', 'PRD-002', 'Examplol 200 mg capsules'), strength: '200 mg', dosageForm: 'capsule' });
 master.materials_.push({ ...item('pm-foil', 'PM-101', 'Printed aluminium foil'), category: 'packing', unit: 'm' },
   { ...item('pm-ctn', 'PM-103', 'Carton'), category: 'packing', unit: 'nos' });
 master.equipment_.push({ ...item('ln-1', 'BL-01', 'Blister line 1'), kind: 'equipment', type: 'blister line', room: 'PK-01' },

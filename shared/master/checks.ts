@@ -42,7 +42,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
 
   // A packing master (it has a pack) has its own checks instead of the formula and calculation checks.
   if (doc.pack) out.push(...packingChecks(doc));
-  else formulaChecks(doc, out, error);
+  else { formulaChecks(doc, out, error); capsuleChecks(doc, error); }
 
   twice(doc.stages.map((s) => s.key), 'stages');
   // TC-11: a master that weighs names the rooms its materials are weighed in (its balances are offered there).
@@ -74,7 +74,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       const p = `${path}.steps[${ti}]`;
       const block = findBlock(st.block);
       if (!block) return void error(`${p}.block`, `No block ${st.block.id} version ${st.block.version}`);
-      if (block.packing && !doc.pack) error(p, `${block.name} is a packing step: a tablet master cannot use it`);
+      if (block.packing && !doc.pack) error(p, `${block.name} is a packing step: a capsule master cannot use it`);
       if (!st.checker && (block.gmp || st.critical)) error(p, `${block.gmp ? `A ${block.gmp.replace('line-clearance', 'line clearance')} step` : 'A critical step'} needs a second-person check`, 'TC-08');
       if (st.critical && st.flow.kind === 'optional-with-reason') error(`${p}.flow`, 'A critical step cannot be optional');
       if (st.waitForCheck && !st.checker) warn(p, 'The next step waits for a check this step does not have');
@@ -104,7 +104,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       if (from && from !== s && !doc.pack) {
         const added = [...new Set(s.steps.flatMap((x) => Object.values(x.settings)).flatMap((v) => (typeof v === 'object' && 'formula' in v ? [v.formula] : [])))]
           .map((k) => doc.formula.find((l) => l.key === k)?.name).filter((n): n is string => !!n);
-        if (added.length) error(`${p}.settings.theoretical`, `The yield of ${s.name} is worked out on the output of ${from.name} only, but ${s.name} adds ${added.join(' and ')}: the yield would read above 100 %. Take the theoretical core batch weight (or a quantity that includes what this stage adds) as the theoretical quantity`);
+        if (added.length) error(`${p}.settings.theoretical`, `The yield of ${s.name} is worked out on the output of ${from.name} only, but ${s.name} adds ${added.join(' and ')}: the yield would read above 100 %. Take the theoretical fill batch weight (or a quantity that includes what this stage adds) as the theoretical quantity`);
       }
       // A calculation that needs no recorded value is worked out now (e.g. a liquid make-up, T17): a refusal must be fixed.
       const now = evaluate(doc, [], { stage: si, sub: 1, step: ti, round: 1 }, {});
@@ -119,7 +119,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       if (later && !st.everyMinutes) error(`${p}.everyMinutesLater`, 'A later interval needs the interval of the first checks');
       if (later && block.periodic && later.everyMinutes > block.periodic.maxMinutes) error(`${p}.everyMinutesLater`, `Periodic checks every ${later.everyMinutes} min: they must be at least every ${block.periodic.maxMinutes} min`, 'TC-15');
       if (st.onlyIf) {
-        const r = c1WithinLimits({ value: { value: '0', unit: st.onlyIf.header === 'batchSize' ? 'tablets' : 'kg' }, limit: st.onlyIf.limit });
+        const r = c1WithinLimits({ value: { value: '0', unit: st.onlyIf.header === 'batchSize' ? 'capsules' : 'kg' }, limit: st.onlyIf.limit });
         if (!r.ok) error(`${p}.onlyIf`, `The rule for leaving the step out: ${r.message}`);
       }
       // A spray of a liquid made in excess: the amount to apply per charge, or all of it would be sprayed (F0339).
@@ -136,17 +136,52 @@ export function masterChecks(doc: MasterDoc): Problem[] {
   return out.map((p) => ({ ...p, message: plainWords(p.message) }));
 }
 
-/** The formula: the core materials (not coating, not a solvent removed in processing) make the core weight. */
+/**
+ * TC-01, TC-14, TC-24: the capsule process. Fill weights are checked while filling or encapsulating (TC-15); a soft gel
+ * is encapsulated and dried to an end point (hardness or shell water); a US OTC two-piece hard capsule is sealed
+ * (211.132(b)(2)); weight variation uses the dosage unit of the shell (a suspension soft gel uses content uniformity).
+ */
+const FILL_CHECKS = ['capsule-fill', 'capsule-fill-net', 'softgel-encapsulate'];
+function capsuleChecks(doc: MasterDoc, error: (path: string, message: string, rule?: string) => void): void {
+  const steps = doc.stages.flatMap((s, si) => s.steps.map((t, ti) => ({ t, path: `stages[${si}].steps[${ti}]` })));
+  const has = (...ids: string[]) => steps.some(({ t }) => ids.includes(t.block.id));
+  const soft = doc.header.shellType === 'soft gelatin';
+  if (!has(...FILL_CHECKS)) error('stages', 'The master has no capsule filling or encapsulation step with fill-weight checks', 'TC-01');
+  if (soft && !has('softgel-encapsulate')) error('stages', 'A soft gel master needs an encapsulation step', 'TC-01');
+  if (soft && !has('softgel-dry', 'softgel-dry-water')) error('stages', 'A soft gel master needs a drying step with its end point (hardness or shell water content)', 'TC-01');
+  if (doc.header.usOtc && doc.header.shellType && !soft && !has('capsule-band')) {
+    error('stages', 'A US OTC hard capsule product must be sealed: add a banding or sealing step', 'TC-24');
+  }
+  for (const { t, path } of steps.filter(({ t }) => t.block.id === 'uniformity-by-weight')) {
+    const unit = t.settings.coating;
+    if (unit === 'hard capsule' && soft) error(`${path}.settings.coating`, 'The dosage unit "hard capsule" does not fit a soft gelatin shell', 'TC-14');
+    if (unit === 'soft capsule, solution fill' && doc.header.shellType && !soft) error(`${path}.settings.coating`, 'The dosage unit "soft capsule, solution fill" does not fit a hard shell', 'TC-14');
+  }
+}
+
+/** The formula: the fill materials (not coating, not a solvent removed in processing) make the fill weight. */
 function formulaChecks(doc: MasterDoc, out: Problem[], error: (path: string, message: string, rule?: string) => void): void {
   const twice = (keys: string[], path: string) => keys.forEach((k, i) => keys.indexOf(k) !== i && error(`${path}[${i}]`, `The key ${k} is used twice`));
   twice(doc.formula.map((l) => l.key), 'formula');
-  const core = doc.formula.filter((l) => l.place !== 'coating' && l.role !== 'solvent');
-  const total = t2Total({ values: core.map((l) => `${l.mgPerTablet} mg`), unit: 'mg' });
-  if (!core.length) error('formula', 'The formula has no core materials');
-  else if (total.ok && !total.value.eq(new Dec(doc.header.coreWeightMg))) {
-    error('formula', `The core materials add up to ${total.value.toString()} mg per tablet, not the theoretical core weight ${doc.header.coreWeightMg} mg`);
+  const core = doc.formula.filter((l) => l.place !== 'coating' && l.place !== 'shell' && l.role !== 'solvent');
+  const total = t2Total({ values: core.map((l) => `${l.mgPerCapsule} mg`), unit: 'mg' });
+  if (!core.length) error('formula', 'The formula has no fill materials');
+  else if (total.ok && !total.value.eq(new Dec(doc.header.fillWeightMg))) {
+    error('formula', `The fill materials add up to ${total.value.toString()} mg per capsule, not the theoretical fill weight ${doc.header.fillWeightMg} mg`);
   }
-  if (doc.header.coatedWeightMg && new Dec(doc.header.coatedWeightMg).lt(doc.header.coreWeightMg)) error('header.coatedWeightMg', 'The coated weight is below the core weight');
+  // TC-01: the shell: its type and weight; the shell lines (an empty hard shell at its mean weight, or a soft gel's gel
+  // mass lines with their water) add up to the shell weight per capsule.
+  const h = doc.header;
+  if (!h.shellType) error('header.shellType', 'The master names no shell type (hard gelatin, HPMC or soft gelatin)', 'TC-01');
+  if (!h.shellWeightMg) error('header.shellWeightMg', h.shellType === 'soft gelatin' ? 'The master has no wet gel mass per capsule' : 'The master has no mean empty shell weight', 'TC-01');
+  const shell = doc.formula.filter((l) => l.place === 'shell');
+  if (!shell.length) error('formula', h.shellType === 'soft gelatin' ? 'The formula has no gel mass lines (place: shell)' : 'The formula has no empty shell line (place: shell)', 'TC-01');
+  else if (h.shellWeightMg) {
+    const sum = shell.reduce((t, l) => t.plus(l.mgPerCapsule), new Dec(0));
+    if (!sum.eq(h.shellWeightMg)) error('formula', `The shell lines add up to ${sum.toString()} mg per capsule, not the shell weight ${h.shellWeightMg} mg`, 'TC-01');
+  }
+  if (h.shellType && h.shellType !== 'soft gelatin' && shell.length > 1) error('formula', 'A hard capsule has one empty shell line', 'TC-01');
+  if (doc.header.coatedWeightMg && new Dec(doc.header.coatedWeightMg).lt(doc.header.fillWeightMg)) error('header.coatedWeightMg', 'The coated weight is below the fill weight');
   if (doc.formula.some((l) => l.place === 'coating') && !doc.header.coatedWeightMg) error('header.coatedWeightMg', 'A coated product needs the theoretical coated weight');
   doc.formula.forEach((l, i) => {
     const a = l.adjust;
@@ -182,30 +217,30 @@ const isMass = (text: string) => quantityOf(text)?.u.kind === 'mass';
 const off = (a: Dec, b: Dec) => a.minus(b).abs().div(b).times(100);
 
 /**
- * Calculation checks on the formula's own numbers (refusals): a batch quantity written that per tablet × batch size
+ * Calculation checks on the formula's own numbers (refusals): a batch quantity written that per capsule × batch size
  * does not give (F0303, F0388), one material twice in one place with two quantities (F0250), and the coating lines
- * against the coated − core weight (F0159, F0042; the core lines are checked above).
+ * against the coated − fill weight (F0159, F0042; the core lines are checked above).
  */
 function formulaSums(doc: MasterDoc, error: (path: string, message: string) => void): void {
   doc.formula.forEach((l, i) => {
     if (l.batchQuantity !== undefined) {
       const w = quantityOf(l.batchQuantity);
-      const t8 = w && t8BatchScaling({ mode: 'per unit', perUnit: `${l.mgPerTablet} mg`, count: `${doc.header.batchSize} tablets`, unit: w.u.symbol });
+      const t8 = w && t8BatchScaling({ mode: 'per unit', perUnit: `${l.mgPerCapsule} mg`, count: `${doc.header.batchSize} capsules`, unit: w.u.symbol });
       if (!w || !t8?.ok) error(`formula[${i}].batchQuantity`, `"${l.batchQuantity}" is not a mass with a unit, e.g. "120.000 kg"`);
       else if (!t8.value.toDecimalPlaces(decimalsOf(l.batchQuantity.split(/\s/)[0]!), Dec.ROUND_HALF_UP).eq(w.v)) {
-        error(`formula[${i}].batchQuantity`, `The batch quantity ${l.batchQuantity} written for ${l.name} is not ${t8.shown}: every batch quantity comes from the quantity per tablet × the batch size (T8). Correct the batch column or the mg per tablet`);
+        error(`formula[${i}].batchQuantity`, `The batch quantity ${l.batchQuantity} written for ${l.name} is not ${t8.shown}: every batch quantity comes from the quantity per capsule × the batch size (T8). Correct the batch column or the mg per capsule`);
       }
     }
     const twin = doc.formula.findIndex((x, j) => j < i && x.materialItemId === l.materialItemId && x.place === l.place && x.layer === l.layer);
-    if (twin >= 0 && !new Dec(doc.formula[twin]!.mgPerTablet).eq(l.mgPerTablet)) {
-      error(`formula[${i}]`, `${l.name} appears twice in the ${l.place} part with two quantities (${doc.formula[twin]!.mgPerTablet} and ${l.mgPerTablet} mg per tablet): keep one line with the quantity that is charged`);
+    if (twin >= 0 && !new Dec(doc.formula[twin]!.mgPerCapsule).eq(l.mgPerCapsule)) {
+      error(`formula[${i}]`, `${l.name} appears twice in the ${l.place} part with two quantities (${doc.formula[twin]!.mgPerCapsule} and ${l.mgPerCapsule} mg per capsule): keep one line with the quantity that is charged`);
     }
   });
   const coat = doc.formula.filter((l) => l.place === 'coating' && l.role !== 'solvent');
   if (coat.length && doc.header.coatedWeightMg) {
-    const sum = coat.reduce((t, l) => t.plus(l.mgPerTablet), new Dec(0));
-    const gain = new Dec(doc.header.coatedWeightMg).minus(doc.header.coreWeightMg);
-    if (!sum.eq(gain)) error('formula', `The coating materials add up to ${sum.toString()} mg per tablet, not the coated − core weight ${gain.toString()} mg`);
+    const sum = coat.reduce((t, l) => t.plus(l.mgPerCapsule), new Dec(0));
+    const gain = new Dec(doc.header.coatedWeightMg).minus(doc.header.fillWeightMg);
+    if (!sum.eq(gain)) error('formula', `The coating materials add up to ${sum.toString()} mg per capsule, not the coated − fill weight ${gain.toString()} mg`);
   }
 }
 
@@ -238,31 +273,31 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
     if (l.role === 'api' && (salt || SALT_WORD.test(l.name))) {
       const formulaForm = salt?.from.name || l.name;
       const other = salt ? salt.to.name || 'the dispensed form' : 'the base, acid or element';
-      const basis = ask(`formula[${i}]`, `label-basis/${l.key}`, `Label claim for this master's market: is the strength of ${l.name} stated as ${formulaForm} or as ${other}? The formula gives ${l.mgPerTablet} mg of ${formulaForm} per tablet.`, [`as ${formulaForm}`, `as ${other}`]);
-      if (l.labelClaim) labelClaim(`formula[${i}].labelClaim`, l, l.labelClaim, new Dec(l.mgPerTablet), basis, l.name);
+      const basis = ask(`formula[${i}]`, `label-basis/${l.key}`, `Label claim for this master's market: is the strength of ${l.name} stated as ${formulaForm} or as ${other}? The formula gives ${l.mgPerCapsule} mg of ${formulaForm} per capsule.`, [`as ${formulaForm}`, `as ${other}`]);
+      if (l.labelClaim) labelClaim(`formula[${i}].labelClaim`, l, l.labelClaim, new Dec(l.mgPerCapsule), basis, l.name);
       // The same basis question for each strength from the same blend (F0225: a strength's claim may be on another basis).
       (doc.header.otherStrengths ?? []).forEach((st, n) => {
-        const mg = new Dec(l.mgPerTablet).times(st.coreWeightMg).div(doc.header.coreWeightMg);
-        const b = ask(`header.otherStrengths[${n}]`, `label-basis/${l.key}/${st.name}`, `Label claim of ${st.name}: is the strength of ${l.name} stated as ${formulaForm} or as ${other}? Its ${st.coreWeightMg} mg tablets hold ${mg.toFixed(3, Dec.ROUND_HALF_UP)} mg of ${formulaForm}.`, [`as ${formulaForm}`, `as ${other}`]);
+        const mg = new Dec(l.mgPerCapsule).times(st.fillWeightMg).div(doc.header.fillWeightMg);
+        const b = ask(`header.otherStrengths[${n}]`, `label-basis/${l.key}/${st.name}`, `Label claim of ${st.name}: is the strength of ${l.name} stated as ${formulaForm} or as ${other}? Its ${st.fillWeightMg} mg capsules hold ${mg.toFixed(3, Dec.ROUND_HALF_UP)} mg of ${formulaForm}.`, [`as ${formulaForm}`, `as ${other}`]);
         labelClaim(`header.otherStrengths[${n}]`, l, st.labelClaim, mg, b, `${l.name} in ${st.name}`);
       });
     } else if (l.role === 'api') {
-      if (l.labelClaim) labelClaim(`formula[${i}].labelClaim`, l, l.labelClaim, new Dec(l.mgPerTablet), `as ${l.name}`, l.name);
+      if (l.labelClaim) labelClaim(`formula[${i}].labelClaim`, l, l.labelClaim, new Dec(l.mgPerCapsule), `as ${l.name}`, l.name);
       (doc.header.otherStrengths ?? []).forEach((st, n) => labelClaim(`header.otherStrengths[${n}]`, l, st.labelClaim,
-        new Dec(l.mgPerTablet).times(st.coreWeightMg).div(doc.header.coreWeightMg), `as ${l.name}`, `${l.name} in ${st.name}`));
+        new Dec(l.mgPerCapsule).times(st.fillWeightMg).div(doc.header.fillWeightMg), `as ${l.name}`, `${l.name} in ${st.name}`));
     }
     // A solvent-wet API weighed as if dry (F0204: about 23 % too little); answered, or corrected with the lot's solvent.
     const corrected = l.adjust?.potency?.basis === 'dried' || l.adjust?.potency?.basis === 'anhydrous and solvent-free' || l.adjust?.content?.formulaQuantityIs === 'wet';
     if (l.role === 'api' && WET.test(l.name) && !corrected) {
       ask(`formula[${i}]`, `solvent-wet/${l.key}`, `${l.name} looks solvent-wet: its quantity needs the lot's measured solvent content (an assay adjustment on the dried or solvent-free basis, or a content adjustment). Weighed as dry API it gives too little drug (F0204: about 23 %). Is it weighed dry?`, ['weighed dry'], true);
     }
-    // A processing aid that is removed (rinsed out, sublimed) but counted in the tablet (F0476: about 12.5 % too much drug).
+    // A processing aid that is removed (rinsed out, sublimed) but counted in the capsule (F0476: about 12.5 % too much drug).
     if (l.role !== 'solvent' && AID.test(l.name)) {
-      ask(`formula[${i}]`, `removed/${l.key}`, `${l.name} is often a processing aid removed in processing (rinsed out, sublimed). If it is removed, set its role to removed so the core weight, content, yield and reconciliation use only the solids that stay. Does it stay in the tablet?`, ['stays in the tablet'], true);
+      ask(`formula[${i}]`, `removed/${l.key}`, `${l.name} is often a processing aid removed in processing (rinsed out, sublimed). If it is removed, set its role to removed so the fill weight, content, yield and reconciliation use only the solids that stay. Does it stay in the capsule?`, ['stays in the capsule'], true);
     }
     // (b) a herbal or extract line
     if (l.role !== 'solvent' && HERBAL.test(l.name)) {
-      ask(`formula[${i}]`, `herbal/${l.key}`, `${l.name} is a herbal or extract line: is ${l.mgPerTablet} mg per tablet the raw-herb equivalent or the weight of the extract?`, ['raw-herb equivalent', 'extract weight']);
+      ask(`formula[${i}]`, `herbal/${l.key}`, `${l.name} is a herbal or extract line: is ${l.mgPerCapsule} mg per capsule the raw-herb equivalent or the weight of the extract?`, ['raw-herb equivalent', 'extract weight']);
     }
     if (atDispensing && l.adjust?.content?.contentSource === 'in-process result') {
       ask(`formula[${i}].adjust`, `double-adjustment/${l.key}`, `${atDispensing.name} is adjusted for its potency at dispensing, and ${l.name} is set again from an in-process granule or blend assay (T18): the potency would be corrected twice. Confirm that this is intended, with a reason, or remove one of the adjustments.`, ['intended'], true);
@@ -287,22 +322,15 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
     const p = `stages[${si}].steps[${ti}]`;
     const block = findBlock(t.block);
     const limits = Object.entries(t.settings).filter((e): e is [string, Limit] => typeof e[1] === 'object' && 'unit' in e[1]);
-    const { coreWeightMg: core, coatedWeightMg: coated, dieAreaMm2: area } = doc.header;
-    // A weight target must name its stage (F0175: a sublimation tablet compressed to its weight after sublimation).
+    const { fillWeightMg: core, coatedWeightMg: coated } = doc.header;
+    // A weight target must name its stage (F0175: a sublimation capsule compressed to its weight after sublimation).
     for (const [name, lim] of limits) {
       if (lim.unit !== 'mg' || !/mean|weight/i.test(name)) continue;
       const inside = (w?: string) => { const r = w === undefined ? undefined : c1WithinLimits({ value: { value: w, unit: 'mg' }, limit: lim }); return r?.ok === true && r.check?.pass === true; };
-      if (!inside(core) && !inside(coated)) {
-        ask(`${p}.settings.${name}`, `weight-stage/${s.key}/${t.key}/${name}`, `The limits ${lim.low ?? ''}-${lim.high ?? ''} mg of this step contain neither the theoretical core weight ${core} mg nor the coated weight${coated ? ` ${coated} mg` : ''}: at which stage is this weight? A weight taken after a later loss or gain doses wrong (F0175: about 10 %). Confirm that it is the weight at this step, with the reason, or correct it.`, ['weight at this step'], true);
-      }
-    }
-    // The target weight must fit the tooling (F0135: 0.079 g printed for a 2 mm mini-tablet of about 8 mg).
-    const th = limits.find(([n, l]) => /thickness/i.test(n) && l.unit === 'mm')?.[1];
-    const mid = th && (th.low && th.high ? new Dec(th.low).plus(th.high).div(2) : new Dec(th.low ?? th.high ?? '0'));
-    if (area && mid && mid.gt(0) && block?.id === 'compress') {
-      const density = new Dec(core).div(new Dec(area).times(mid));
-      if (density.lt('0.5') || density.gt('2.5')) {
-        ask(p, `tooling/${s.key}/${t.key}`, `The core weight ${core} mg in a die of ${area} mm² at about ${mid.toString()} mm thick is ${density.toFixed(2, Dec.ROUND_HALF_UP)} g/cm³; tablets are about 0.5-2.5 g/cm³. Check the weight's unit and the tooling (F0135: a 10 times unit error), and confirm with the reason, or correct it.`, ['confirmed'], true);
+      // Capsules: a gross fill-weight check is on the filled capsule (fill + mean empty shell).
+      const filled = doc.header.shellWeightMg && DECIMAL.test(core) ? new Dec(core).plus(doc.header.shellWeightMg).toString() : undefined;
+      if (!inside(core) && !inside(coated) && !inside(filled)) {
+        ask(`${p}.settings.${name}`, `weight-stage/${s.key}/${t.key}/${name}`, `The limits ${lim.low ?? ''}-${lim.high ?? ''} mg of this step contain neither the theoretical fill weight ${core} mg, the filled capsule weight${filled ? ` ${filled} mg` : ''} nor the coated weight${coated ? ` ${coated} mg` : ''}: at which stage is this weight? A weight taken after a later loss or gain doses wrong (F0175: about 10 %). Confirm that it is the weight at this step, with the reason, or correct it.`, ['weight at this step'], true);
       }
     }
     // An API lot test of particle size, surface area or crystal form needs both limits (F0490: Cmax 67.5-130 %).
@@ -317,7 +345,7 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
     }
   }));
 
-  /** The API per tablet against a label claim (refusal), on the basis answered: the formula form, or the other form by the MWs. */
+  /** The API per capsule against a label claim (refusal), on the basis answered: the formula form, or the other form by the MWs. */
   function labelClaim(path: string, l: FormulaLine, claim: string, mg: Dec, basis: string | undefined, what: string): void {
     const q = quantityOf(claim);
     const salt = l.adjust?.salt;
@@ -333,7 +361,7 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
       else if (salt && basis === `as ${salt.to.name || 'the dispensed form'}`) expected = claimMg.times(new Dec(salt.from.mw).div(salt.from.moleculesPerUnit ?? 1)).div(new Dec(salt.to.mw).div(salt.to.moleculesPerUnit ?? 1));
     }
     if (expected && !expected.isZero() && off(mg, expected).gt('0.5')) {
-      refuse(path, `${what}: ${mg.toFixed(3, Dec.ROUND_HALF_UP)} mg of ${form} per tablet does not give the label claim ${claim} (${expected.toFixed(3, Dec.ROUND_HALF_UP)} mg of ${form}). Write the label quantity in the formula; an excess is an overage (T16), which the batch quantity adds (F0122: 22 mg in a 20 mg tablet)`);
+      refuse(path, `${what}: ${mg.toFixed(3, Dec.ROUND_HALF_UP)} mg of ${form} per capsule does not give the label claim ${claim} (${expected.toFixed(3, Dec.ROUND_HALF_UP)} mg of ${form}). Write the label quantity in the formula; an excess is an overage (T16), which the batch quantity adds (F0122: 22 mg in a 20 mg capsule)`);
     }
   }
 }

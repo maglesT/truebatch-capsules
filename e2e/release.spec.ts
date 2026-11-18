@@ -25,7 +25,7 @@ async function issuedBatch(browser: Browser): Promise<{ id: number; batchNo: str
   const iss = await person(browser, 'iss1');
   const doc = small([{ name: 'Blending', steps: [{ checker: true },
     { block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '0.100 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' } } }] }]);
-  doc.header.productName = 'Demolol 50 mg tablets';
+  doc.header.productName = 'Demolol 50 mg capsules';
   const { id: mv } = await (await iss.page.request.post('/api/masters', { data: { doc } })).json() as { id: number };
   const owner = connect(TEST_DATABASE_URL, { searchPath: E2E_SCHEMA });
   for (const s of ['in_review', 'approved', 'effective']) await owner`update master_versions set state = ${s} where id = ${mv}`;
@@ -59,6 +59,17 @@ async function productionApprovedBatch(browser: Browser): Promise<{ id: number; 
   await step(op, '0.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
   await signed(op, '0.1.1.1', 'done');
   await signed(chk, '0.1.1.1', 'check');
+  // The filling stage every capsule master has (TC-01): one round of fill weights, the filler typed by hand (no
+  // Logbook link here) and checked, then the yield.
+  const hand = Object.fromEntries(['clean', 'calibrated', 'inService', 'qualified'].map((n) => [`machine.${n}`, 'yes']));
+  await step(op, '1.1.0.1', 'start');
+  await step(op, '1.1.0.1', 'record', { values: { machine: 'eq-cf', ...hand, weights: Array(20).fill('175.0'), length: Array(5).fill('19.4'), appearance: 'yes', rejected: '0', fillingDone: 'yes' } });
+  await signed(op, '1.1.0.1', 'done');
+  await signed(chk, '1.1.0.1', 'check');
+  await step(op, '1.1.1.1', 'start');
+  await step(op, '1.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
+  await signed(op, '1.1.1.1', 'done');
+  await signed(chk, '1.1.1.1', 'check');
   const sup = await person(browser, 'sup1');
   const pa = await sup.page.request.post(`/api/batches/${batch.id}/production-approve`, { data: { proof: await sup.proof('production_approved'), contentHash: await hash(sup.page) } });
   expect(pa.ok(), await pa.text()).toBe(true);

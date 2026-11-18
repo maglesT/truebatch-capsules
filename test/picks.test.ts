@@ -8,22 +8,27 @@ import { pack } from './packing-fixture.js';
 // share a word with them and must not be offered (filter press, air compressor, dry heat steriliser, case packer).
 const TYPES = ['Balance', 'Analytical balance', 'Micro balance', 'IPC balance', 'Platform balance', 'Bin blender', 'Blender', 'Auto coater', 'Blister packer',
   'Strip packer', 'High speed blister line', 'Rapid mixer granulator', 'Fluid bed dryer', 'Tablet compression machine', 'Tablet press', 'Cold forming machine',
-  'Filter press', 'Air compressor', 'Dry heat steriliser', 'Case packer', 'Sifter', 'Multimill', 'Friabilator', 'Disintegration tester', 'Manufacturing vessel'];
+  'Filter press', 'Air compressor', 'Dry heat steriliser', 'Case packer', 'Sifter', 'Multimill', 'Friabilator', 'Disintegration tester', 'Manufacturing vessel',
+  // Capsules (the demo's capsule machine types, set up on screens).
+  'Capsule filling machine', 'Softgel encapsulation machine', 'Gelatin melter', 'Tumble dryer', 'Metal detector', 'Capsule banding machine', 'Capsule polishing machine', 'Checkweigher'];
 const MACHINES = TYPES.map((type, i) => ({ code: `EQ-${i}`, type, room: null }));
 const BALANCES = ['Balance', 'IPC balance', 'Platform balance'];
 const BLENDERS = ['Bin blender', 'Blender'];
 const LINES = ['Blister packer', 'Strip packer', 'High speed blister line', 'Cold forming machine'];
 const OFFERS: Record<string, string[]> = {
   'weigh.balance': BALANCES, 'lubricate.balance': BALANCES, 'lubricate.machine': BLENDERS, 'blend-uniformity.machine': BLENDERS,
-  'dry-mix.machine': [...BLENDERS, 'Rapid mixer granulator'], 'granulate.machine': ['Rapid mixer granulator'], 'dry.machine': ['Fluid bed dryer'],
-  'compress.machine': ['Tablet compression machine', 'Tablet press'], 'spray-coat.machine': ['Auto coater'], 'sift.machine': ['Sifter'],
-  'sieve.machine': ['Sifter', 'Multimill'], 'binder-solution.machine': ['Manufacturing vessel'], 'coating-suspension.machine': ['Manufacturing vessel'],
-  'charge.machine': [...BLENDERS, 'Rapid mixer granulator', 'Fluid bed dryer', 'Manufacturing vessel'], 'friability.machine': ['Friabilator'], 'disintegration.machine': ['Disintegration tester'],
+  'dry-mix.machine': [...BLENDERS, 'Rapid mixer granulator'], 'granulate.machine': ['Rapid mixer granulator'], 'dry.machine': ['Fluid bed dryer', 'Tumble dryer'],
+  'sift.machine': ['Sifter'],
+  'sieve.machine': ['Sifter', 'Multimill'], 'binder-solution.machine': ['Manufacturing vessel'],
+  'charge.machine': [...BLENDERS, 'Rapid mixer granulator', 'Fluid bed dryer', 'Manufacturing vessel'], 'disintegration.machine': ['Disintegration tester'],
+  'capsule-fill.machine': ['Capsule filling machine'], 'softgel-encapsulate.machine': ['Softgel encapsulation machine'], 'gel-mass.machine': ['Manufacturing vessel', 'Gelatin melter'],
+  'softgel-dry.machine': ['Tumble dryer'], 'metal-check.machine': ['Metal detector'], 'capsule-band.machine': ['Capsule banding machine'],
+  'polish-print.machine': ['Capsule polishing machine'], 'uniformity-by-weight.balance': BALANCES, 'mix.machine': [...BLENDERS, 'Rapid mixer granulator', 'Manufacturing vessel'],
   'bulk-issue.line': LINES, 'pack-clearance.line': LINES, 'pack-clearance-after.line': LINES,
 };
 
 describe('machine pickers on the demo master-data types', () => {
-  const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', coreWeightMg: '250.0' };
+  const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', shellType: 'hard gelatin' as const, shellSize: '1', shellWeightMg: '75.0' };
   // The types alone: here every stage allows any room (the rooms are tested below).
   const stages = [...SKELETON_LIST.flatMap((s) => skeletonStages(s.id, header)), ...packingStages(pack())].map((s) => ({ ...s, roomTypes: [] }));
 
@@ -65,7 +70,7 @@ describe('machine pickers on the demo master-data types', () => {
     expect(machineRefusal(stage, field('weigh', 'balance'), BALS[5]!, ROOMS, ['RM-101'])).toBe('INL-BAL-01 stands in RM-301, neither in a dispensing room of the master nor in a room this stage allows (Granulation, Coating)');
     expect(machineRefusal(stage, field('weigh', 'balance'), BALS[3]!, ROOMS, ['RM-101'])).toBe('IN-BAL-01 stands in RM-110 (QC), a laboratory area: weigh with a balance of a dispensing room of the master or of a room this stage allows');
     // A version made before the setting: the rooms whose area is exactly "Dispensing".
-    const old = { header: { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1', coreWeightMg: '1' } };
+    const old = { header: { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1', fillWeightMg: '1' } };
     expect(dispensingRooms(old, ROOMS)).toEqual(['RM-101']);
     expect(dispensingRooms({ header: { ...old.header, dispensingRooms: ['RM-102'] } }, ROOMS)).toEqual(['RM-102']);
   });

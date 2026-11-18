@@ -1,4 +1,4 @@
-// The sweep: every block of the library (tablets and packing) in a small master with all its settings set, and the
+// The sweep: every block of the library (capsules and packing) in a small master with all its settings set, and the
 // test masters, worked out with every field filled ("1" for a number, yes, the first option), once with the required
 // fields only and once with all, in a first and a second round. A template may refuse what it is given; it must never
 // crash on it (a crash is "could not use these inputs": the step could not be signed).
@@ -7,13 +7,12 @@ import { BLOCKS, findBlock, type Block } from '../shared/blocks/index.js';
 import { evaluate, type StepEvent, type Value } from '../shared/engine/index.js';
 import { masterChecks } from '../shared/master/checks.js';
 import { masterSchema, type MasterDoc, type Step } from '../shared/master/schema.js';
-import { at, ev, tablet } from './engine-fixture.js';
+import { at, ev, capsule } from './engine-fixture.js';
 import { GTIN, pack, packing } from './packing-fixture.js';
 
 const pct = (low: string, high: string) => ({ low, high, unit: '%' });
 const minutes = { low: '10', high: '12', unit: 'min' };
-const weights = { meanLimit: { low: '95.0', high: '105.0', unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0', hardnessLimit: { low: '40', high: '80', unit: 'N' },
-  thicknessLimit: { low: '2.8', high: '3.2', unit: 'mm' } };
+const weights = { meanLimit: { low: '170.0', high: '180.0', unit: 'mg' }, weightBand: '7.5', weightOuterBand: '15.0' };
 // Every setting of every block that has settings, optional ones too.
 const SETTINGS: Record<string, Step['settings']> = {
   weigh: { target: { formula: 'x', adjusted: true }, tolerance: '0.5' },
@@ -32,25 +31,32 @@ const SETTINGS: Record<string, Step['settings']> = {
   'density-flow': { carrLimit: { high: '20', unit: '%' }, hausnerLimit: { high: '1.25', unit: '' }, reposeLimit: { high: '40', unit: '°' } },
   'sieve-analysis': { sieve1: '850 µm', sieve2: '425 µm', sieve3: '250 µm', sieve4: '180 µm', sieve5: '150 µm', finesBelow: '150 µm', finesLimit: { high: '20.0', unit: '%' },
     recoveryLimit: pct('98.0', '102.0') },
-  'press-setup': { toolingType: '8.0 mm round', pressureLimit: { low: '100', high: '250', unit: 'MPa' }, speedLimit: { low: '10', high: '60', unit: 'rpm' } },
-  'compression-release': weights,
-  compress: weights,
-  friability: { lossLimit: { high: '1.0', unit: '%' } },
+  'gel-mass': { tempLimit: { low: '60', high: '70', unit: '°C' }, viscosityLimit: { low: '4000', high: '9000', unit: 'mPa·s' }, waterLimit: { low: '28', high: '34', unit: '%' } },
+  'capsule-fill': { ...weights, lengthLimit: { low: '19.0', high: '19.8', unit: 'mm' } },
+  'capsule-fill-net': { fillTarget: { header: 'fillWeight' }, meanLimit: { low: '97.0', high: '103.0', unit: 'mg' }, weightBand: '7.5' },
+  'softgel-encapsulate': { ribbonLimit: { low: '0.75', high: '0.85', unit: 'mm' }, wedgeLimit: { low: '36', high: '40', unit: '°C' }, fillTarget: { header: 'fillWeight' },
+    meanLimit: { low: '97.0', high: '103.0', unit: 'mg' }, weightBand: '5.0', sealLimit: { low: '0.30', unit: 'mm' } },
+  'softgel-dry': { tempLimit: { low: '20', high: '25', unit: '°C' }, rhLimit: { low: '15', high: '25', unit: '%RH' }, hardnessLimit: { low: '8', high: '12', unit: 'N' } },
+  'softgel-dry-water': { tempLimit: { low: '20', high: '25', unit: '°C' }, rhLimit: { low: '15', high: '25', unit: '%RH' }, waterLimit: { low: '6', high: '9', unit: '%' } },
+  'dry-observe': { endPoint: 'Fill melted', tempLimit: { low: '65', high: '75', unit: '°C' } },
+  'capsule-band': { tempLimit: { low: '45', high: '55', unit: '°C' } },
+  'metal-check': { feSize: '1.0', nonFeSize: '1.5', ssSize: '2.0' },
+  checkweigh: { weightLimit: { low: '165.0', high: '185.0', unit: 'mg' } },
+  'check-observe': { what: 'Suspension homogeneous' },
   disintegration: { maxTime: '15', temperatureLimit: { low: '35', high: '39', unit: '°C' } },
-  'uniformity-by-weight': { coating: 'uncoated', labelClaim: '50 mg' },
-  'content-uniformity': { coating: 'uncoated' },
-  coat: { coreWeight: { header: 'coreWeight' }, gainLimit: pct('2.8', '3.2') },
-  'spray-coat': { coreWeight: { header: 'coreWeight' }, base: 'start', gainLimit: pct('2.8', '3.2'), inletLimit: { low: '50', high: '70', unit: '°C' },
+  'uniformity-by-weight': { coating: 'hard capsule', labelClaim: '50 mg' },
+  'content-uniformity': { coating: 'hard capsule' },
+  'spray-coat': { coreWeight: { header: 'fillWeight' }, base: 'start', gainLimit: pct('2.8', '3.2'), inletLimit: { low: '50', high: '70', unit: '°C' },
     bedLimit: { low: '35', high: '45', unit: '°C' }, sprayRateLimit: { low: '50', high: '150', unit: 'g/min' } },
   'polish-print': { print: 'Logo in black' },
   check: { what: 'Weight', unit: 'mg', limit: { low: '95', high: '105', unit: 'mg' } },
-  'qa-sample': { sampleLimit: { low: '50', high: '60', unit: 'tablets' } },
-  'stage-yield': { theoretical: { header: 'coreBatch' }, yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') },
-  'tablet-reconciliation': { theoretical: { header: 'batchSize' }, meanWeight: '100.0 mg', yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') },
+  'qa-sample': { sampleLimit: { low: '50', high: '60', unit: 'capsules' } },
+  'stage-yield': { theoretical: { header: 'fillBatch' }, yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') },
+  'capsule-reconciliation': { theoretical: { header: 'batchSize' }, meanWeight: '175.0 mg', yieldLimit: pct('97.0', '100.5'), accountabilityLimit: pct('99.0', '100.5') },
   'pack-material-issue': { material: { formula: 'foil' }, unit: 'm' },
   'forming-check': { sealLimit: { low: '160', high: '190', unit: '°C' }, formLimit: { low: '110', high: '140', unit: '°C' } },
   'leak-test': { vacuumUnit: 'mbar', vacuumLimit: { low: '400', high: '600', unit: 'mbar' }, level: 'S-1', aql: '0' },
-  'finished-goods': { meanWeight: { header: 'coreWeight' }, yieldLimit: pct('98.0', '100.5'), accountabilityLimit: pct('99.5', '100.5') },
+  'finished-goods': { meanWeight: { header: 'fillWeight' }, yieldLimit: pct('98.0', '100.5'), accountabilityLimit: pct('99.5', '100.5') },
   'printed-reconciliation': { material: { formula: 'foil' }, unit: 'm', issued: '100 m' },
   'serial-reconciliation': { received: '1000 nos' },
 };
@@ -93,8 +99,8 @@ function crashes(doc: MasterDoc, all: boolean): string[] {
   return out;
 }
 
-const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1000', coreWeightMg: '100.0', coatedWeightMg: '103.0', dispensingRooms: ['DSP-01'] };
-const formula = [{ key: 'x', materialItemId: 'm', code: 'M', name: 'M', mgPerTablet: '100.0', role: 'api', place: 'intragranular',
+const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1000', fillWeightMg: '100.0', coatedWeightMg: '103.0', shellType: 'hard gelatin', shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['DSP-01'] };
+const formula = [{ key: 'x', materialItemId: 'm', code: 'M', name: 'M', mgPerCapsule: '100.0', role: 'api', place: 'intragranular',
   adjust: { potency: { basis: 'as is', standardIs: 'anhydrous' }, overage: { percent: '2' } } }];
 /** A small master of one block with all its settings set; a packing block after the bulk issue (its batch facts). */
 function using(b: Block): MasterDoc {
@@ -112,7 +118,7 @@ describe('the sweep: no template crashes on any block or test master', () => {
     expect(masterChecks(using(b)).filter((p) => /every reading would be refused/.test(p.message))).toEqual([]);
   });
 
-  it.each([['tablet', tablet()], ['packing', packing()], ['packing, serialised', packing({ gtin: GTIN, serialisation: true })],
+  it.each([['capsule', capsule()], ['packing', packing()], ['packing, serialised', packing({ gtin: GTIN, serialisation: true })],
     ['packing, bottles', packing({ type: 'bottle' })]] as const)('the %s test master', (_name, doc) => {
     for (const all of [false, true]) expect(crashes(doc, all)).toEqual([]);
     expect(masterChecks(doc).filter((p) => /every reading would be refused/.test(p.message))).toEqual([]);

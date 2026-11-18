@@ -1,20 +1,23 @@
 import type { Block } from './format.js';
 
-// Uniformity of dosage units by weight variation (T14): each tablet's content from its weight and the assay. Only
-// for uncoated and film-coated tablets: the master can pick no other coating, and T14 refuses any other.
+// Copied from Tablets with capsule wording (data change 3). Uniformity of dosage units by weight variation (T14) on the
+// NET contents: each of 10 capsules weighed full, then its empty shell (hard) or washed shell (soft gel); each capsule's
+// content from its net fill and the assay. Only for hard capsules and soft capsules with a solution fill: T14 and the
+// master check refuse any other.
+const caps = Array.from({ length: 10 }, (_, i) => `c${i + 1}`);
 export const uniformityByWeight: Block = {
   id: 'uniformity-by-weight', version: 1, name: 'Uniformity by weight variation', checker: true,
-  instruction: 'Weigh 10 tablets one by one and record each weight. Record the assay of the batch from the QC report.',
+  instruction: 'Weigh 10 capsules one by one. Open each, empty it (soft gels: wash out the fill and dry the shell) and weigh its shell. Record the assay of the batch from the QC report.',
   fields: [
     { name: 'balance', label: 'Balance', kind: 'machine', types: ['balance'], notTypes: ['analytical', 'micro'] },
-    { name: 'weights', label: 'Weights of 10 tablets', kind: 'number', unit: 'mg', count: 10 },
+    ...caps.map((c, i) => ({ name: c, label: `Capsule ${i + 1}: full, then shell`, kind: 'number' as const, unit: 'mg', count: 2 })),
     { name: 'assay', label: 'Assay (% of label claim, QC report)', kind: 'number', unit: '%' },
   ],
   settings: [
-    { name: 'coating', label: 'Coating', kind: 'text', options: ['uncoated', 'film-coated'] },
-    { name: 'labelClaim', label: 'Label claim per tablet', kind: 'quantity' },
+    { name: 'coating', label: 'Dosage unit', kind: 'text', options: ['hard capsule', 'soft capsule, solution fill'] },
+    { name: 'labelClaim', label: 'Label claim per capsule', kind: 'quantity' },
   ],
   calcs: [
-    { name: 'acceptance', label: 'Content uniformity', template: 'T14', args: { method: 'weight variation', coating: '$coating', weights: { readings: '$weights' }, assay: '$assay', labelClaim: '$labelClaim' } },
+    { name: 'acceptance', label: 'Content uniformity', template: 'T14', args: { method: 'weight variation', coating: '$coating', weights: { units: caps.map((c) => `$${c}`), combine: 'first minus rest' }, assay: '$assay', labelClaim: '$labelClaim' } },
   ],
 };

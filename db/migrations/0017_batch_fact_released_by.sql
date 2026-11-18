@@ -21,7 +21,7 @@ select md5('truebatch_capsules:batch:' || b.id)::uuid as batch_id, b.batch_no as
   now() as read_at, greatest(b.issued_at, s.last, e.last) as data_as_of,
   (s.started at time zone 'Asia/Kolkata')::date as manufactured_on,
   v.doc->'header'->>'productName' as product_name, v.version_no as master_version,
-  round(nullif(y.r->'goodTablets'->>'value', '')::numeric, 0) as good_quantity, 'tablets'::text as good_unit,
+  round(nullif(y.r->'goodTablets'->>'value', '')::numeric, 0) as good_quantity, 'capsules'::text as good_unit,
   round(nullif(y.r->'yield'->>'value', '')::numeric, 2) as yield_percent,
   rl.at as released_at, rl.by as released_by
 from batches b
@@ -39,7 +39,7 @@ left join lateral (
   select x.at, (select g.printed_name from signatures g where g.object_type = 'batch_event' and g.object_id = x.id and g.meaning = 'released') as by
   from batch_events x where x.batch_id = b.id and x.kind = 'released' order by x.id limit 1
 ) rl on true
--- The batch's tablet reconciliation (the last such step of the master): its results as last recorded, once the step
+-- The batch's capsule reconciliation (the last such step of the master): its results as last recorded, once the step
 -- is done (signed, and not sent back since); null before.
 left join lateral (
   select (st.i - 1)::int as stage, (sp.j - 1)::int as step

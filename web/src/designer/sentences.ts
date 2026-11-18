@@ -13,14 +13,14 @@ type Calc = Block['calcs'][number];
 
 /** A label inside a sentence: each word lower-cased, except one with a capital after its first letter (pH, RSD, CFU). */
 export const lower = (label: string) => label.split(' ').map((w) => (/^.+[A-Z]/u.test(w) ? w : w.toLowerCase())).join(' ');
-/** "is" or "are" after a label: "the good tablets are", "the yield is". */
+/** "is" or "are" after a label: "the good capsules are", "the yield is". */
 const isAre = (label: string) => (/[^su]s$/.test(label.split(' ').at(-1) ?? '') ? 'are' : 'is');
 
 // Packing: the master's pack facts and the batch facts recorded at issue, in words.
 const FACTS: Record<string, string> = {
-  'pack.unitsPerPack': 'the tablets per pack', 'pack.packsPerCarton': 'the packs per carton', 'pack.shelfLifeMonths': 'the approved shelf life',
+  'pack.unitsPerPack': 'the capsules per pack', 'pack.packsPerCarton': 'the packs per carton', 'pack.shelfLifeMonths': 'the approved shelf life',
   'pack.expiryRule': 'the expiry rule', 'pack.type': 'the pack type', 'pack.destination': 'the destination', 'pack.gtin': 'the pack GTIN', 'pack.mrp': 'the MRP of the master',
-  'batch.bulk': 'the bulk batch number', 'batch.mfgDate': 'the date of manufacture of the bulk', 'batch.tablets': 'the bulk tablets issued',
+  'batch.bulk': 'the bulk batch number', 'batch.mfgDate': 'the date of manufacture of the bulk', 'batch.capsules': 'the bulk capsules issued',
   'batch.packs': 'the theoretical packs', 'batch.line': 'the packing line',
 };
 
@@ -63,6 +63,9 @@ export function sentence(block: Block, c: Calc): Part[] {
   const limit = (pre = '; it must be ') => (a.limit === undefined ? [] : [pre, p(a.limit)]);
   const label = lower(c.label);
   const is = isAre(label);
+  // Readings, or per-unit groups of readings (capsules: full − empty shell, each capsule a group of two).
+  const units = a.units as unknown[] | undefined;
+  const series = units ? `the ${units.length} values per unit (each the first reading less the other${a.combine === 'first minus rest' ? '' : 's'})` : p(a.readings);
   switch (c.template) {
     case 'T1': return [`The ${label} ${is} `, p(a.a), ' minus ', p(a.b), '.'];
     case 'T3': return [`The ${label} ${is} `, p(a.actual), ' as a percentage of ', p(a.theoretical), ...limit(), '.'];
@@ -72,7 +75,7 @@ export function sentence(block: Block, c: Calc): Part[] {
     }
     case 'T5': return [`The ${label} ${is} the ${a.mode === 'loss' ? 'loss' : 'gain'} from `, p(a.before), ' to ', p(a.after),
       `, as a percentage of ${a.base === 'start' ? 'the starting weight' : a.base === 'final' ? 'the final weight' : 'the named stage'}`, ...limit(), '.'];
-    case 'T7': return [`The ${label} ${is} the mean of `, p(a.readings), ...limit(', which must be '), ...(a.rsdLimit ? ['; the RSD must be ', p(a.rsdLimit)] : []), '.'];
+    case 'T7': return [`The ${label} ${is} the mean of `, series, ...limit(', which must be '), ...(a.rsdLimit ? ['; the RSD must be ', p(a.rsdLimit)] : []), '.'];
     case 'T13': return [`The ${label} ${is} the time from `, p(a.start), ' to ', p(a.end), ...limit(), '.'];
     case 'C1': {
       const around = a.around as { centre: unknown; plusMinusPercent?: unknown; plusMinus?: unknown } | undefined;
@@ -83,9 +86,11 @@ export function sentence(block: Block, c: Calc): Part[] {
       return [p(a.value), ' must be ', p(a.limit), '.'];
     }
     case 'C3': {
-      const band = a.band as { plusMinusPercent?: unknown; limit?: unknown }; const outer = a.outer as { plusMinusPercent: unknown } | undefined;
-      if (band.limit) return ['Each of ', p(a.readings), ' must be ', p(band.limit), '.'];
-      return ['Each of ', p(a.readings), ' must be within ± ', p(band.plusMinusPercent), ` % of the mean, with at most ${String(a.allowedOutside ?? 0)} outside`,
+      const band = a.band as { plusMinusPercent?: unknown; limit?: unknown; of?: unknown }; const outer = a.outer as { plusMinusPercent: unknown } | undefined;
+      if (band.limit) return ['Each of ', series, ' must be ', p(band.limit), '.'];
+      const of = band.of && typeof band.of === 'object' ? (band.of as { target: unknown }).target : undefined;
+      if (of !== undefined) return ['Each of ', series, ' must be within ± ', p(band.plusMinusPercent), ' % of ', p(of), `, with at most ${String(a.allowedOutside ?? 0)} outside.`];
+      return ['Each of ', series, ' must be within ± ', p(band.plusMinusPercent), ` % of the mean, with at most ${String(a.allowedOutside ?? 0)} outside`,
         ...(outer ? [', and none outside ± ', p(outer.plusMinusPercent), ' %'] : []), '.'];
     }
     case 'C4': return [`${String(a.question)}: the answer must be "${(a.expected as string[]).join('" or "')}".`];

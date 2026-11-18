@@ -9,6 +9,7 @@ export function SignDialog({
   blocked,
   onSign,
   onCancel,
+  wide,
 }: {
   meaning: string;
   what: string;
@@ -18,6 +19,8 @@ export function SignDialog({
   blocked?: boolean;
   onSign: (credentials: { proof: string }) => Promise<void>;
   onCancel: () => void;
+  // A long record to sign (QA termination with what went back to stores): the wide window, so it fits a 760 px screen.
+  wide?: boolean;
 }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -48,7 +51,7 @@ export function SignDialog({
 
   return (
     <div className="overlay" role="dialog" aria-modal="true">
-      <form className="card dialog" onSubmit={submit}>
+      <form className={`card dialog${wide ? ' wide' : ''}`} onSubmit={submit}>
         <h2>Sign: {MEANING_LABEL[meaning] ?? meaning}</h2>
         <p>{what}</p>
         {children}
