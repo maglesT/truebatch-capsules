@@ -131,6 +131,16 @@ describe('a packing material lot is not issued beyond what MMS shows available',
     expect((await record(second, { lot: 'CTN-1', issued: '600', matches: 'yes' })).statusCode).toBe(200);
   });
 
+  it('a lot typed by hand while MMS was down, then an MMS lot picked: the step signs, the hand answers stay in the history (port of Tablets round 36)', async () => {
+    // The step of the second batch: CTN-1 typed by hand with its label answers (MMS down), now CTN-OLD from MMS.
+    expect((await record(second, { lot: 'CTN-OLD', issued: '600', matches: 'yes' })).statusCode).toBe(200);
+    const d = await as('op1', 'POST', `/api/batches/${second}/steps/${CARTON}/done`, { proof: proofFor('op1'), contentHash: await hash(second, CARTON) });
+    expect(d.statusCode, d.body).toBe(200);
+    const h = await t.owner<{ n: number }[]>`select count(*)::int as n from step_events where batch_id = ${second} and kind = 'value'
+      and payload->'values' ?| array['lot.released', 'lot.expiry', 'lot.report']`;
+    expect(h[0]!.n).toBeGreaterThan(0);
+  });
+
   it('what the other TrueBatch products used counts too: MMS\'s stock after use (port of Tablets round 35)', async () => {
     const third = await batch('ln-1');
     expect((await as('op1', 'POST', `/api/batches/${third}/steps/${CARTON}/start`)).statusCode).toBe(200);
