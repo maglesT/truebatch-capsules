@@ -18,22 +18,22 @@ const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSi
 const room = (code: string, name: string, area: string | null, active = true) => ({ itemId: code, code, name, version: 1, active, area, grade: 'D' });
 const machine = (code: string, type: string | null, at: string | null, active = true) => ({ itemId: code, code, name: code, version: 1, active, kind: 'instrument' as const, type, room: at });
 const MD = {
-  rooms: [room('RM-101', 'Dispensing booth', 'Dispensing'), room('RM-932', 'Immunosuppressants block: dispensing', 'Dispensing'), room('RM-105', 'Compression room 1', 'Compression'),
-    room('RM-110', 'QC instrument laboratory', 'QC'), room('RM-501', 'Cyclotron vault', 'Cyclotron vault'), room('RM-999', 'Old room', 'Compression', false)],
-  equipment: [machine('IN-BAL-03', 'Balance', 'RM-101'), machine('IN-BAL-01', 'Balance', 'RM-110'), machine('TP-01', 'Tablet press', 'RM-105'),
-    machine('IN-DT-01', 'Disintegration tester', 'RM-110'), machine('FR-01', 'Friabilator', 'RM-105')],
+  rooms: [room('RM-101', 'Dispensing booth', 'Dispensing'), room('RM-932', 'Immunosuppressants block: dispensing', 'Dispensing'), room('RM-105', 'Capsule filling room 1', 'Capsule filling'),
+    room('RM-110', 'QC instrument laboratory', 'QC'), room('RM-501', 'Cyclotron vault', 'Cyclotron vault'), room('RM-999', 'Old room', 'Capsule filling', false)],
+  equipment: [machine('IN-BAL-03', 'Balance', 'RM-101'), machine('IN-BAL-01', 'Balance', 'RM-110'), machine('CF-01', 'Capsule filling machine', 'RM-105'),
+    machine('IN-DT-01', 'Disintegration tester', 'RM-110'), machine('CP-01', 'Capsule polishing machine', 'RM-105'), machine('MD-01', 'Metal detector', 'RM-105')],
 };
-const uncoated = () => masterSchema.parse({ header, formula: [], stages: skeletonStages('wet-granulation-uncoated', header) });
+const uncoated = () => masterSchema.parse({ header, formula: [], stages: skeletonStages('hard-wet-granulation', header) });
 
 describe('designer findings of the 17 Nov 2026 run', () => {
   it('TC-11 the master check warns when no machine of a step\'s type stands in the rooms its stage allows, and says where it stands (F17)', () => {
     const doc = uncoated();
-    const compression = doc.stages.findIndex((s) => s.key === 'compression');
+    const compression = doc.stages.findIndex((s) => s.key === 'filling');
     const di = doc.stages[compression]!.steps.findIndex((t) => t.block.id === 'disintegration');
     const warned = placeChecks(doc, MD).find((p) => p.path === `stages[${compression}].steps[${di}]`);
     expect(warned).toMatchObject({ level: 'warning', rule: 'TC-11' });
-    expect(warned!.message).toBe('No disintegration tester stands in a room this stage allows (Compression): IN-DT-01 stands in RM-110. Allow its room in the stage settings, or engineering moves it in master data');
-    // The press and the friabilator stand in the compression room: no warning for them; with the tester moved, none.
+    expect(warned!.message).toBe('No disintegration tester stands in a room this stage allows (Capsule filling): IN-DT-01 stands in RM-110. Allow its room in the stage settings, or engineering moves it in master data');
+    // The filler, the polisher and the metal detector stand in the capsule filling room: no warning for them; with the tester moved, none.
     expect(placeChecks(doc, MD).filter((p) => p.path.startsWith(`stages[${compression}]`)).map((p) => p.path)).toEqual([`stages[${compression}].steps[${di}]`]);
     const moved = { ...MD, equipment: MD.equipment.map((m) => (m.code === 'IN-DT-01' ? { ...m, room: 'RM-105' } : m)) };
     expect(placeChecks(doc, moved).filter((p) => p.path.startsWith(`stages[${compression}]`))).toEqual([]);
@@ -46,14 +46,14 @@ describe('designer findings of the 17 Nov 2026 run', () => {
 
   it('a stage\'s yield on an earlier stage\'s output is refused when the stage adds formula materials (F11)', () => {
     const d = capsule();
-    // Compression of the fixture weighs nothing; make its yield on the granules and let it charge the lubricant.
-    const ci = d.stages.findIndex((s) => s.key === 'compression');
+    // Filling of the fixture weighs nothing; make its yield on the granules and let it charge the lubricant.
+    const ci = d.stages.findIndex((s) => s.key === 'filling');
     const yi = d.stages[ci]!.steps.findIndex((t) => t.key === 'yield');
     d.stages[ci]!.steps[yi]!.settings.theoretical = { ref: 'granulation/yield/output' };
     expect(masterChecks(d).filter((p) => p.path === `stages[${ci}].steps[${yi}].settings.theoretical`)).toEqual([]);
     d.stages[ci]!.steps.unshift({ key: 'weigh-mgst', block: { id: 'weigh', version: 1 }, checker: true, waitForCheck: false, critical: false, flow: { kind: 'none' }, settings: { target: { formula: 'mgst' }, tolerance: '0.5' } });
     expect(masterChecks(d).filter((p) => p.path === `stages[${ci}].steps[${yi + 1}].settings.theoretical`).map((p) => [p.level, p.message])).toEqual([['error',
-      'The yield of Compression is worked out on the output of Granulation only, but Compression adds Magnesium stearate: the yield would read above 100 %. Take the theoretical fill batch weight (or a quantity that includes what this stage adds) as the theoretical quantity']]);
+      'The yield of Filling is worked out on the output of Granulation only, but Filling adds Magnesium stearate: the yield would read above 100 %. Take the theoretical fill batch weight (or a quantity that includes what this stage adds) as the theoretical quantity']]);
     // Every skeleton passes this check: blending's yield is on the fill batch weight.
     for (const s of SKELETON_LIST) {
       const doc = masterSchema.parse({ header, formula: [], stages: skeletonStages(s.id, header) });
@@ -90,14 +90,14 @@ describe('designer findings of the 17 Nov 2026 run', () => {
     const di = block('disintegration');
     expect(sentenceText(capsule(), di, { maxTime: '15' }, sentence(di, di.calcs[1]!)))
       .toBe('Each of the times of 6 capsules must be at most 15 min; when one or two are not, the times of 12 more capsules are recorded too, and at least 16 of the 18 must be.');
-    const pd = block('punch-die-check');
-    expect(sentenceText(capsule(), pd, {}, sentence(pd, pd.calcs[1]!))).toBe('The punches or dies damaged must be 0: none allowed.');
-    const rec = block('tablet-reconciliation');
+    const band = block('capsule-band');
+    expect(sentenceText(capsule(), band, {}, sentence(band, band.calcs[2]!))).toBe('The leaking capsules found must be 0: none allowed.');
+    const rec = block('capsule-reconciliation');
     const good = rec.calcs.find((c) => /good capsules/i.test(c.label));
     if (good) expect(sentenceText(capsule(), rec, {}, sentence(rec, good))).toMatch(/^The good capsules are /);
     const lines = describeMaster(uncoated()).flatMap((s) => s.lines.map((l) => l.text));
     expect(lines).toContain('Batch size 50,000 capsules.');
-    expect(lines.find((l) => l.includes('Produces bulk capsules'))).toMatch(/to be used within 720 hours \(30 days\)\./);
+    expect(lines.find((l) => l.includes('Produces filled capsules'))).toMatch(/to be used within 720 hours \(30 days\)\./);
     // A charged material by its name and code, as the floor names it.
     const d = capsule();
     const text = describeMaster(d).flatMap((s) => s.lines.map((l) => l.text)).find((l) => l.includes('Charge a material'))!;
@@ -137,9 +137,9 @@ describe('designer findings of the 17 Nov 2026 run', () => {
     expect(disp.groups).toEqual([{ label: 'Rooms with a weighing balance', options: ['RM-101'] }, { label: 'Other rooms', options: ['RM-105', 'RM-110', 'RM-501', 'RM-932'] }]);
     expect(disp.text('RM-932')).toBe('RM-932 · Immunosuppressants block: dispensing (Dispensing)');
     // A stage: the areas and rooms where its machines stand first.
-    const compression = uncoated().stages.find((s) => s.key === 'compression')!;
+    const compression = uncoated().stages.find((s) => s.key === 'filling')!;
     const st = stageRoomChoices(compression, MD);
-    expect(st.groups[0]).toEqual({ label: "Where this stage's machines stand", options: ['Compression', 'QC', 'RM-105', 'RM-110'] });
+    expect(st.groups[0]).toEqual({ label: "Where this stage's machines stand", options: ['Capsule filling', 'QC', 'RM-105', 'RM-110'] });
     expect(st.groups[1]!.options).toEqual(['Cyclotron vault', 'Dispensing']);
   });
 

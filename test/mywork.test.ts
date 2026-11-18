@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { call, freshApp, login, proofFor, seedUser, type TestApp } from './helpers.js';
+import { call, freshApp, handLabels, login, proofFor, seedUser, type TestApp } from './helpers.js';
 import { small } from './engine-fixture.js';
 
 // GET /api/batches: "My work" on the floor screens: the batches in production with what waits for each person.
@@ -26,7 +26,7 @@ beforeAll(async () => {
   t = await freshApp();
   t.master.products_.push({ ...item('p', 'P', 'P'), strength: null, dosageForm: 'capsule' });
   t.master.materials_.push({ ...item('m', 'M', 'M'), category: null, unit: 'kg' }, { ...item('mat-shl', 'MAT-008', 'Empty hard gelatin capsule size 1'), category: 'excipient', unit: 'kg' });
-  t.master.equipment_.push({ ...item('eq-prs', 'PRS-01', 'Tablet press'), kind: 'equipment', type: 'tablet press', room: 'CMP-01' });
+  t.master.equipment_.push({ ...item('eq-cf', 'CF-01', 'Capsule filling machine'), kind: 'equipment', type: 'capsule filling machine', room: 'CF-01' });
   const people = { author: ['truebatch_capsules.master.author'], issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.batch.check'],
     ravi: ['truebatch_capsules.batch.check'], sam: ['truebatch_capsules.batch.supervise'], viewer: ['truebatch_capsules.view'] } as const;
   for (const [name, perms] of Object.entries(people)) {
@@ -69,6 +69,15 @@ describe('My work', () => {
     await sign('asha', b.id, '0.1.1.1', 'done');
     expect((await mine('sam')).some((w) => w.id === b.id)).toBe(false);
     await sign('ravi', b.id, '0.1.1.1', 'check');
+    // The filling stage every capsule master has (TC-01): one round, the filler typed by hand and checked, the yield.
+    await act('asha', b.id, '1.1.0.1', 'start');
+    await act('asha', b.id, '1.1.0.1', 'record', { values: { machine: 'eq-cf', ...handLabels('machine', 'machine'), weights: Array(20).fill('175.0'), length: Array(5).fill('19.4'), appearance: 'yes', rejected: '0', fillingDone: 'yes' } });
+    await sign('asha', b.id, '1.1.0.1', 'done');
+    await sign('ravi', b.id, '1.1.0.1', 'check');
+    await act('asha', b.id, '1.1.1.1', 'start');
+    await act('asha', b.id, '1.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
+    await sign('asha', b.id, '1.1.1.1', 'done');
+    await sign('ravi', b.id, '1.1.1.1', 'check');
     const w = (await mine('sam')).find((x) => x.id === b.id)!;
     expect(w).toMatchObject({ status: 'manufacturing complete', current: null, badges: [{ kind: 'approve' }] });
     const full = (await as('sam', 'GET', `/api/batches/${b.id}`)).json() as { batch: { contentHash: string } };
@@ -76,13 +85,13 @@ describe('My work', () => {
     expect((await mine('sam')).some((x) => x.id === b.id)).toBe(false);
   });
 
-  it('TC-15 a compression round started shows when the next check is due', async () => {
-    const c = await issue(small([{ machineTypes: ['tablet press'], steps: [{ block: { id: 'compress', version: 1 }, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 40 },
-      settings: { meanLimit: { low: '95.0', high: '105.0', unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0', hardnessLimit: { low: '40', high: '80', unit: 'N' }, thicknessLimit: { low: '2.8', high: '3.2', unit: 'mm' } } },
+  it('TC-15 a filling round started shows when the next fill-weight check is due', async () => {
+    const c = await issue(small([{ machineTypes: ['capsule filling machine'], steps: [{ block: { id: 'capsule-fill', version: 1 }, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 40 },
+      settings: { meanLimit: { low: '170.0', high: '180.0', unit: 'mg' }, weightBand: '7.5', weightOuterBand: '15.0' } },
     { block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '0.100 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' } } }] }]));
     await act('asha', c.id, '0.1.0.1', 'start');
     const due = (await mine('asha')).find((w) => w.id === c.id)!.badges;
-    expect(due).toMatchObject([{ kind: 'due', step: '0.1.0.1', stage: 'Stage 0', title: 'Compress with periodic checks' }]);
+    expect(due).toMatchObject([{ kind: 'due', step: '0.1.0.1', stage: 'Stage 0', title: 'Fill capsules with periodic checks' }]);
     expect(Date.parse(due[0]!.at!) - Date.now()).toBeGreaterThan(29 * 60_000);
   });
 });

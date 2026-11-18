@@ -1,5 +1,5 @@
 import { masterSchema, type MasterDoc } from '../shared/master/schema.js';
-import type { EventKind, Payload, StepEvent, StepKey } from '../shared/engine/index.js';
+import { evaluate, parseKey, type EventKind, type Payload, type StepEvent, type StepKey, type Value } from '../shared/engine/index.js';
 
 // An invented film-coated capsule, 100 mg of an invented API, batch of 100 000 capsules (core 250.0 mg, coated
 // 257.5 mg). Core: 100.0 + 120.0 + 10.0 + 17.5 + 2.5 = 250.0 mg; the granulation water is a solvent.
@@ -38,19 +38,20 @@ export const capsule = (): MasterDoc => masterSchema.parse({
       ],
     },
     {
-      key: 'compression', name: 'Compression', kind: 'normal', machineTypes: ['tablet press'], uses: ['granulation'], role: 'Compression operator',
-      produces: { name: 'core capsules', holdHours: 720 },
+      key: 'filling', name: 'Filling', kind: 'normal', machineTypes: ['capsule filling machine'], uses: ['granulation'], role: 'Filling operator',
+      produces: { name: 'filled capsules', holdHours: 720 },
       steps: [
-        { key: 'compress', block: { id: 'compress', version: 1 }, checker: false, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 40 },
-          settings: { meanLimit: { low: '245.0', high: '255.0', unit: 'mg' }, weightBand: '5.0', weightOuterBand: '10.0', hardnessLimit: { low: '60', high: '120', unit: 'N' }, thicknessLimit: { low: '3.8', high: '4.2', unit: 'mm' } } },
+        // Gross weights: 250.0 mg fill + 75.0 mg mean empty shell = 325.0 mg.
+        { key: 'fill', block: { id: 'capsule-fill', version: 1 }, checker: false, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 40 },
+          settings: { meanLimit: { low: '317.0', high: '333.0', unit: 'mg' }, weightBand: '7.5', weightOuterBand: '15.0', lengthLimit: { low: '19.0', high: '19.8', unit: 'mm' } } },
         { key: 'yield', block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: { header: 'fillBatch' }, yieldLimit: { low: '97.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.0', high: '100.5', unit: '%' } } },
       ],
     },
     {
-      key: 'coating', name: 'Coating', kind: 'sub-batch', count: 2, machineTypes: ['coater'], uses: ['compression'], role: 'Coating operator',
+      key: 'coating', name: 'Coating', kind: 'sub-batch', count: 2, machineTypes: ['coater'], uses: ['filling'], role: 'Coating operator',
       produces: { name: 'coated capsules', holdHours: 2160 },
       steps: [
-        { key: 'coat', block: { id: 'coat', version: 1 }, checker: false, flow: { kind: 'repeat-until', maxRounds: 10 }, settings: { coreWeight: { ref: 'compression/compress/meanWeight' }, gainLimit: { low: '2.8', high: '3.2', unit: '%' } } },
+        { key: 'coat', block: { id: 'spray-coat', version: 1 }, checker: false, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 10 }, settings: { coreWeight: { ref: 'filling/fill/meanWeight' }, base: 'start', gainLimit: { low: '2.8', high: '3.2', unit: '%' }, inletLimit: { low: '40', high: '50', unit: '°C' }, bedLimit: { low: '30', high: '35', unit: '°C' } } },
         { key: 'qa-hold', block: { id: 'check', version: 1 }, checker: false, flow: { kind: 'qa-hold' }, settings: { what: 'Appearance score', unit: '', limit: { low: '4', unit: '' } } },
         { key: 'yield', block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '12.875 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' }, accountabilityLimit: { low: '99.0', high: '100.5', unit: '%' } } },
       ],
@@ -76,11 +77,18 @@ export function small(stages: object[]): MasterDoc {
     header: { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '1000', fillWeightMg: '100.0', shellType: 'hard gelatin', shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['DSP-01'] },
     formula: [{ key: 'x', materialItemId: 'm', code: 'M', name: 'M', mgPerCapsule: '100.0', role: 'excipient', place: 'intragranular' },
       { key: 'shell', materialItemId: 'mat-shl', code: 'MAT-008', name: 'Empty hard gelatin capsule size 1', mgPerCapsule: '75.0', role: 'excipient', place: 'shell' },],
-    stages: stages.map((s, i) => ({ key: `s${i}`, name: `Stage ${i}`, kind: 'normal', ...s,
+    stages: [...stages.map((s, i) => ({ key: `s${i}`, name: `Stage ${i}`, kind: 'normal', ...s,
       steps: ((s as { steps?: object[] }).steps ?? [{}]).map((t, j) => ({ key: `t${j}`, block: { id: 'check', version: 1 }, checker: false,
         settings: { what: 'pH', unit: '', limit: { low: '5.0', high: '7.0', unit: '' } }, ...t })) })),
+      // TC-01: every capsule master fills with fill-weight checks: a small master ends with this filling stage unless it
+      // fills already.
+      ...(JSON.stringify(stages).includes('"capsule-fill') || JSON.stringify(stages).includes('softgel-encapsulate') ? [] : [SMALL_FILL])],
   });
 }
+export const SMALL_FILL = { key: 'fill', name: 'Filling', kind: 'normal', role: 'Filling operator', steps: [
+  { key: 'fill', block: { id: 'capsule-fill', version: 1 }, checker: false, everyMinutes: 30, flow: { kind: 'repeat-until', maxRounds: 40 },
+    settings: { meanLimit: { low: '170.0', high: '180.0', unit: 'mg' }, weightBand: '7.5', weightOuterBand: '15.0' } },
+  { key: 'yield', block: { id: 'stage-yield', version: 1 }, checker: true, settings: { theoretical: '0.100 kg', yieldLimit: { low: '97.0', high: '100.5', unit: '%' } } }] };
 
 export const T0 = new Date('2026-11-15T08:00:00Z');
 export const at = (minutes: number) => new Date(T0.getTime() + minutes * 60_000);
@@ -97,3 +105,18 @@ export const reading = (key: string, results: Record<string, unknown>, o: { pers
   ev('value', key, { ...o, payload: { values: {}, results: results as Payload['results'] } });
 export const pass = { ok: true, value: '1', unit: '', shown: '', check: { pass: true, level: 'pass', shown: '' } };
 export const fail = { ok: true, value: '9', unit: '', shown: '', check: { pass: false, level: 'fail', shown: '' } };
+
+/** The values that finish the Filling stage small() adds: one round of 20 gross weights at 175.0 mg, then its yield. */
+export const FILL_ROUND: Record<string, Value> = { machine: 'CF-01', weights: Array.from({ length: 20 }, () => ({ value: '175.0', unit: 'mg' })),
+  length: Array.from({ length: 5 }, () => ({ value: '19.4', unit: 'mm' })), appearance: 'yes', rejected: { value: '0', unit: 'capsules' }, fillingDone: 'yes' };
+export const FILL_YIELD: Record<string, Value> = { output: { value: '0.099', unit: 'kg' }, samples: { value: '0', unit: 'kg' }, rejects: { value: '0.001', unit: 'kg' } };
+/** The events that finish small()'s Filling stage (the last stage), from minute `min`. */
+export function fillEvents(doc: MasterDoc, min = 100): StepEvent[] {
+  const s = doc.stages.findIndex((x) => x.key === 'fill');
+  const key = (t: number) => `${s}.1.${t}.1`;
+  const fill = { values: FILL_ROUND, results: evaluate(doc, [], parseKey(key(0))!, FILL_ROUND) };
+  const yld = { values: FILL_YIELD, results: evaluate(doc, [], parseKey(key(1))!, FILL_YIELD) };
+  return [ev('started', key(0), { min }), ev('value', key(0), { min: min + 1, payload: fill }), ev('done', key(0), { min: min + 2 }),
+    ev('started', key(1), { min: min + 3 }), ev('value', key(1), { min: min + 4, payload: yld }), ev('done', key(1), { min: min + 5 }),
+    ev('checked', key(1), { person: 2, min: min + 6 })];
+}

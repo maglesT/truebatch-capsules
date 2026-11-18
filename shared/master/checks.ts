@@ -42,7 +42,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
 
   // A packing master (it has a pack) has its own checks instead of the formula and calculation checks.
   if (doc.pack) out.push(...packingChecks(doc));
-  else formulaChecks(doc, out, error);
+  else { formulaChecks(doc, out, error); capsuleChecks(doc, error); }
 
   twice(doc.stages.map((s) => s.key), 'stages');
   // TC-11: a master that weighs names the rooms its materials are weighed in (its balances are offered there).
@@ -134,6 +134,29 @@ export function masterChecks(doc: MasterDoc): Problem[] {
     });
   });
   return out.map((p) => ({ ...p, message: plainWords(p.message) }));
+}
+
+/**
+ * TC-01, TC-14, TC-24: the capsule process. Fill weights are checked while filling or encapsulating (TC-15); a soft gel
+ * is encapsulated and dried to an end point (hardness or shell water); a US OTC two-piece hard capsule is sealed
+ * (211.132(b)(2)); weight variation uses the dosage unit of the shell (a suspension soft gel uses content uniformity).
+ */
+const FILL_CHECKS = ['capsule-fill', 'capsule-fill-net', 'softgel-encapsulate'];
+function capsuleChecks(doc: MasterDoc, error: (path: string, message: string, rule?: string) => void): void {
+  const steps = doc.stages.flatMap((s, si) => s.steps.map((t, ti) => ({ t, path: `stages[${si}].steps[${ti}]` })));
+  const has = (...ids: string[]) => steps.some(({ t }) => ids.includes(t.block.id));
+  const soft = doc.header.shellType === 'soft gelatin';
+  if (!has(...FILL_CHECKS)) error('stages', 'The master has no capsule filling or encapsulation step with fill-weight checks', 'TC-01');
+  if (soft && !has('softgel-encapsulate')) error('stages', 'A soft gel master needs an encapsulation step', 'TC-01');
+  if (soft && !has('softgel-dry', 'softgel-dry-water')) error('stages', 'A soft gel master needs a drying step with its end point (hardness or shell water content)', 'TC-01');
+  if (doc.header.usOtc && doc.header.shellType && !soft && !has('capsule-band')) {
+    error('stages', 'A US OTC hard capsule product must be sealed: add a banding or sealing step', 'TC-24');
+  }
+  for (const { t, path } of steps.filter(({ t }) => t.block.id === 'uniformity-by-weight')) {
+    const unit = t.settings.coating;
+    if (unit === 'hard capsule' && soft) error(`${path}.settings.coating`, 'The dosage unit "hard capsule" does not fit a soft gelatin shell', 'TC-14');
+    if (unit === 'soft capsule, solution fill' && doc.header.shellType && !soft) error(`${path}.settings.coating`, 'The dosage unit "soft capsule, solution fill" does not fit a hard shell', 'TC-14');
+  }
 }
 
 /** The formula: the fill materials (not coating, not a solvent removed in processing) make the fill weight. */
@@ -299,22 +322,15 @@ function calculationChecks(doc: MasterDoc, out: Problem[]): void {
     const p = `stages[${si}].steps[${ti}]`;
     const block = findBlock(t.block);
     const limits = Object.entries(t.settings).filter((e): e is [string, Limit] => typeof e[1] === 'object' && 'unit' in e[1]);
-    const { fillWeightMg: core, coatedWeightMg: coated, dieAreaMm2: area } = doc.header;
+    const { fillWeightMg: core, coatedWeightMg: coated } = doc.header;
     // A weight target must name its stage (F0175: a sublimation capsule compressed to its weight after sublimation).
     for (const [name, lim] of limits) {
       if (lim.unit !== 'mg' || !/mean|weight/i.test(name)) continue;
       const inside = (w?: string) => { const r = w === undefined ? undefined : c1WithinLimits({ value: { value: w, unit: 'mg' }, limit: lim }); return r?.ok === true && r.check?.pass === true; };
-      if (!inside(core) && !inside(coated)) {
-        ask(`${p}.settings.${name}`, `weight-stage/${s.key}/${t.key}/${name}`, `The limits ${lim.low ?? ''}-${lim.high ?? ''} mg of this step contain neither the theoretical fill weight ${core} mg nor the coated weight${coated ? ` ${coated} mg` : ''}: at which stage is this weight? A weight taken after a later loss or gain doses wrong (F0175: about 10 %). Confirm that it is the weight at this step, with the reason, or correct it.`, ['weight at this step'], true);
-      }
-    }
-    // The target weight must fit the tooling (F0135: 0.079 g printed for a 2 mm mini-tablet of about 8 mg).
-    const th = limits.find(([n, l]) => /thickness/i.test(n) && l.unit === 'mm')?.[1];
-    const mid = th && (th.low && th.high ? new Dec(th.low).plus(th.high).div(2) : new Dec(th.low ?? th.high ?? '0'));
-    if (area && mid && mid.gt(0) && block?.id === 'compress') {
-      const density = new Dec(core).div(new Dec(area).times(mid));
-      if (density.lt('0.5') || density.gt('2.5')) {
-        ask(p, `tooling/${s.key}/${t.key}`, `The fill weight ${core} mg in a die of ${area} mm² at about ${mid.toString()} mm thick is ${density.toFixed(2, Dec.ROUND_HALF_UP)} g/cm³; capsules are about 0.5-2.5 g/cm³. Check the weight's unit and the tooling (F0135: a 10 times unit error), and confirm with the reason, or correct it.`, ['confirmed'], true);
+      // Capsules: a gross fill-weight check is on the filled capsule (fill + mean empty shell).
+      const filled = doc.header.shellWeightMg && DECIMAL.test(core) ? new Dec(core).plus(doc.header.shellWeightMg).toString() : undefined;
+      if (!inside(core) && !inside(coated) && !inside(filled)) {
+        ask(`${p}.settings.${name}`, `weight-stage/${s.key}/${t.key}/${name}`, `The limits ${lim.low ?? ''}-${lim.high ?? ''} mg of this step contain neither the theoretical fill weight ${core} mg, the filled capsule weight${filled ? ` ${filled} mg` : ''} nor the coated weight${coated ? ` ${coated} mg` : ''}: at which stage is this weight? A weight taken after a later loss or gain doses wrong (F0175: about 10 %). Confirm that it is the weight at this step, with the reason, or correct it.`, ['weight at this step'], true);
       }
     }
     // An API lot test of particle size, surface area or crystal form needs both limits (F0490: Cmax 67.5-130 %).

@@ -36,28 +36,28 @@ describe('master designer', () => {
       const text = [stepText(d, t, 0), ...b.calcs.map((c) => sentenceText(d, b, t.settings, sentence(b, c)))].join(' ');
       expect(text, `${b.id} v${b.version}`).not.toMatch(/\[object Object\]|undefined|NaN/);
     }
-    const punch = block('punch-die-check');
-    expect(sentenceText(d, punch, {}, sentence(punch, punch.calcs[1]!))).toBe('The punches or dies damaged must be 0: none allowed.');
+    const band = block('capsule-band');
+    expect(sentenceText(d, band, {}, sentence(band, band.calcs[2]!))).toBe('The leaking capsules found must be 0: none allowed.');
     // Any other shape written into a block reads in words too.
-    const said = (limit: unknown) => sentenceText(d, punch, {}, sentence(punch, { name: 'x', label: 'x', template: 'C1', args: { value: '$damaged', limit } }));
-    expect(said({ max: 0 })).toBe('The punches or dies damaged must be at most 0.');
-    expect(said({ low: '2', high: '5', unit: 'kg' })).toBe('The punches or dies damaged must be within 2 to 5 kg.');
-    expect(said([{ high: '$toolingCheck', highStrict: true }, { min: 1 }])).toBe('The punches or dies damaged must be less than the punches and dies and at least 1.');
+    const said = (limit: unknown) => sentenceText(d, band, {}, sentence(band, { name: 'x', label: 'x', template: 'C1', args: { value: '$leakers', limit } }));
+    expect(said({ max: 0 })).toBe('The leaking capsules found must be at most 0.');
+    expect(said({ low: '2', high: '5', unit: 'kg' })).toBe('The leaking capsules found must be within 2 to 5 kg.');
+    expect(said([{ high: '$tempCheck', highStrict: true }, { min: 1 }])).toBe('The leaking capsules found must be less than the band solution temperature and at least 1.');
   });
 
   it('a quantity or limit is offered only from values of a compatible kind', () => {
     expect(neededKind(block('stage-yield'), 'theoretical')).toBe('mass');
     expect(neededKind(block('stage-yield'), 'yieldLimit')).toBe('fraction');
-    expect(neededKind(block('compress'), 'hardnessLimit')).toBe('force');
+    expect(neededKind(block('softgel-dry'), 'hardnessLimit')).toBe('force');
     // A limit on a result whose template sets its kind: not the kind of the values it is worked out from.
-    expect(['pressureLimit', 'carrLimit', 'hausnerLimit', 'reposeLimit', 'finesLimit', 'recoveryLimit', 'rsdLimit', 'mixTimeLimit']
+    expect(['carrLimit', 'hausnerLimit', 'reposeLimit', 'finesLimit', 'recoveryLimit', 'rsdLimit', 'mixTimeLimit']
       .map((n) => neededKind(BLOCKS.find((b) => b.settings.some((x) => x.name === n))!, n)))
-      .toEqual(['pressure', 'fraction', 'number', 'angle', 'fraction', 'fraction', 'fraction', 'time']);
+      .toEqual(['fraction', 'number', 'angle', 'fraction', 'fraction', 'fraction', 'time']);
     const masses = earlierRefs(capsule(), 3, 0).filter((r) => r.kind === 'mass').map((r) => r.ref);
-    expect(masses).toContain('compression/compress/meanWeight');
-    expect(masses).not.toContain('compression/yield/yield');
+    expect(masses).toContain('filling/fill/meanWeight');
+    expect(masses).not.toContain('filling/yield/yield');
     // A later step, or a step inside another sub-batch stage, is never offered.
-    expect(earlierRefs(capsule(), 2, 0).map((r) => r.ref).some((r) => r.startsWith('compression/') || r.startsWith('coating/'))).toBe(false);
+    expect(earlierRefs(capsule(), 2, 0).map((r) => r.ref).some((r) => r.startsWith('filling/') || r.startsWith('coating/'))).toBe(false);
   });
 
   it('worked examples run the engine on example values: the weighing meets its adjusted target, the yield is in limits', () => {
@@ -78,38 +78,42 @@ describe('master designer', () => {
   });
 
   it('TC-10 the process skeletons are valid drafts and start every stage with line clearance; what they leave open is listed by the master check', () => {
-    const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', coatedWeightMg: '257.5', shellType: 'hard gelatin' as const, shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['RM-101'] };
+    const header = { productItemId: 'p', productCode: 'P', productName: 'P', batchSize: '100000', fillWeightMg: '250.0', shellType: 'hard gelatin' as const, shellSize: '1', shellWeightMg: '75.0', dispensingRooms: ['RM-101'] };
+    const soft = { ...header, shellType: 'soft gelatin' as const, shellWeightMg: '300.0' };
     for (const s of SKELETON_LIST) {
-      const doc = masterSchema.parse({ header, formula: [], stages: skeletonStages(s.id, header) });
-      expect(doc.stages.every((st) => st.steps.every((t) => findBlock(t.block)))).toBe(true);
-      expect(masterChecks(doc).every((p) => /not set|not checked|no fill materials|no empty shell line|choose the rooms/.test(p.message))).toBe(true);
+      const h = s.id.startsWith('softgel') ? soft : header;
+      const doc = masterSchema.parse({ header: h, formula: [], stages: skeletonStages(s.id, h) });
+      expect(doc.stages.every((st) => st.steps[0]!.block.id === 'line-clearance' && st.steps.every((t) => findBlock(t.block)))).toBe(true);
+      // Only what the author fills in: settings, the formula and the rooms of preparations and blending.
+      expect(masterChecks(doc).filter((p) => p.level === 'error').every((p) => /not set|no fill materials|no empty shell line|no gel mass lines|choose the rooms/.test(p.message)), s.id).toBe(true);
     }
-    // TC-11: a master that weighs names its dispensing rooms; a new one starts with none (the author picks them).
+    expect(SKELETON_LIST.map((s) => s.id)).toEqual(['hard-direct-fill', 'hard-wet-granulation', 'softgel-oily', 'softgel-suspension', 'liquid-filled-hard']);
     const bare = masterSchema.parse({ header: { ...header, dispensingRooms: undefined }, formula: [], stages: skeletonStages(SKELETON_LIST[0]!.id, header) });
     expect(masterChecks(bare).filter((p) => p.path === 'header.dispensingRooms')).toEqual([{ level: 'error', path: 'header.dispensingRooms', rule: 'TC-11',
       message: 'The master weighs but names no dispensing rooms: choose them in the header (rooms of master data)' }]);
-    // The rooms: the usual areas where every plant has them; a preparation and blending are left for the author (TC-11).
-    const rooms = (id: string) => masterChecks(masterSchema.parse({ header, formula: [], stages: skeletonStages(id, header) })).filter((p) => p.rule === 'TC-11').map((p) => p.message.split(':')[0]);
-    expect(rooms('wet-granulation-film-coated')).toEqual(['Stage Binder solution', 'Stage Blending', 'Stage Coating suspension']);
-    expect(skeletonStages('wet-granulation-film-coated', header).map((s) => s.roomTypes.join())).toEqual(['', 'Granulation', '', 'Compression', '', 'Coating']);
-    const dc = skeletonStages('direct-compression-uncoated', header);
-    expect(dc.map((s) => s.steps.map((t) => t.block.id).join(' '))).toEqual(['line-clearance weigh sift dry-mix stage-yield',
-      'line-clearance punch-die-check compress friability disintegration punch-die-check tablet-reconciliation']);
-    expect(dc[1]!.steps[2]!.settings.meanLimit).toEqual({ low: '237.5', high: '262.5', unit: 'mg' });
-    expect(dc[1]!.steps.filter((t) => t.block.id === 'punch-die-check').map((t) => t.name)).toEqual(['Punch and die check — before compression', 'Punch and die check — after compression']);
-    expect(dc[0]!.steps[1]!.settings).toEqual({ tolerance: '0.5' });
-    const wg = skeletonStages('wet-granulation-film-coated', header);
-    const at = (stage: string, step: string) => wg.find((s) => s.key === stage)!.steps.find((t) => t.key === step)!;
-    expect(at('coating', 'coat')).toMatchObject({ block: { id: 'spray-coat' }, everyMinutes: 30, flow: { kind: 'repeat-until' } });
-    // Blending adds the extragranular materials and the lubricant: its yield is on the fill batch weight (17 Nov 2026
-    // run, F11); the coating yield on the good cores; the coating gain on the actual core mean; the end point checked.
-    expect(at('blending', 'yield').settings.theoretical).toEqual({ header: 'fillBatch' });
-    expect(at('coating', 'yield')).toMatchObject({ block: { id: 'tablet-reconciliation' }, settings: { theoretical: { ref: 'compression/yield/goodTablets' }, meanWeight: { ref: 'coating/coat/meanWeight' } } });
-    expect(at('coating', 'coat').settings.coreWeight).toEqual({ ref: 'compression/compress/meanWeight' });
-    expect(at('granulation', 'granulate').checker).toBe(true);
-    // An uncoated wet-granulated capsule (17 Nov 2026 run, F10): the same stages without the coating suspension and coating.
-    expect(skeletonStages('wet-granulation-uncoated', header).map((s) => s.key)).toEqual(['binder', 'granulation', 'blending', 'compression']);
-    expect(skeletonStages('wet-granulation-uncoated', header)[3]!.produces).toEqual({ name: 'bulk capsules', holdHours: 720 });
+    const ids = (id: string, h: typeof header | typeof soft = header) => skeletonStages(id, h).map((s) => s.steps.map((t) => t.block.id).join(' '));
+    expect(ids('hard-direct-fill')).toEqual(['line-clearance weigh sift dry-mix stage-yield',
+      'line-clearance capsule-fill uniformity-by-weight disintegration polish-print metal-check capsule-reconciliation']);
+    const df = skeletonStages('hard-direct-fill', header);
+    // TC-15: rounds every 30 minutes on the gross weight: ± 5 % of 250.0 mg fill + 75.0 mg shell = 325.0 mg.
+    expect(df[1]!.steps[1]).toMatchObject({ everyMinutes: 30, flow: { kind: 'repeat-until' }, settings: { meanLimit: { low: '308.8', high: '341.3', unit: 'mg' } } });
+    expect(df[1]!.steps[2]!.settings.coating).toBe('hard capsule');
+    expect(df[1]!.steps.at(-1)!.settings.meanWeight).toEqual({ ref: 'filling/fill/meanWeight' });
+    expect(df.map((s) => s.roomTypes.join())).toEqual(['', 'Capsule filling']);
+    expect(skeletonStages('hard-wet-granulation', header).map((s) => s.key)).toEqual(['binder', 'granulation', 'blending', 'filling']);
+    expect(skeletonStages('hard-wet-granulation', header)[2]!.steps.find((t) => t.key === 'yield')!.settings.theoretical).toEqual({ header: 'fillBatch' });
+    // Soft gel: gel mass and fill medicine alongside; the fills against ± 3 % of the fill target; drying twice, to a hardness.
+    expect(ids('softgel-oily', soft)).toEqual(['line-clearance weigh charge gel-mass', 'line-clearance weigh charge mix check',
+      'line-clearance softgel-encapsulate softgel-dry softgel-dry polish-print uniformity-by-weight disintegration qa-sample capsule-reconciliation']);
+    const sg = skeletonStages('softgel-oily', soft);
+    expect(sg.map((s) => s.kind)).toEqual(['preparation', 'preparation', 'normal']);
+    expect(sg[2]!.steps[1]!.settings).toMatchObject({ fillTarget: { header: 'fillWeight' }, meanLimit: { low: '242.5', high: '257.5', unit: 'mg' } });
+    expect(sg[2]!.steps.filter((t) => t.block.id === 'softgel-dry').map((t) => [t.name, t.minMinutes, t.flow.kind])).toEqual([['Tumble drying', 120, 'repeat-until'], ['Tray drying', 2880, 'repeat-until']]);
+    expect(sg[2]!.steps[5]!.settings.coating).toBe('soft capsule, solution fill');
+    // A suspension fill is milled and deaerated, and uses content uniformity.
+    expect(ids('softgel-suspension', soft)[1]).toBe('line-clearance weigh charge mix sieve mix check');
+    expect(skeletonStages('softgel-suspension', soft)[2]!.steps[5]).toMatchObject({ block: { id: 'content-uniformity' }, settings: { coating: 'soft capsule, suspension fill' } });
+    expect(ids('liquid-filled-hard')[1]).toBe('line-clearance capsule-fill capsule-band uniformity-by-weight disintegration polish-print capsule-reconciliation');
   });
 
   it('a weigh step added from the library starts with the usual tolerance', () => {
@@ -133,8 +137,8 @@ describe('master designer', () => {
     next.stages[1]!.produces!.holdHours = 48;
     const diff = diffMasters(prev, next);
     const lines = diff.flatMap((s) => s.lines.filter((l) => l.change !== 'same').map((l) => `${s.title} ${l.key} ${l.change}`));
-    expect(lines).toEqual(['Formula mcc changed', 'Stage 2: Granulation about changed', 'Stage 3: Compression yield removed']);
-    expect(describeMaster(prev).map((s) => s.title)).toEqual(['Header', 'Formula', 'Stage 1: Binder solution', 'Stage 2: Granulation', 'Stage 3: Compression', 'Stage 4: Coating']);
+    expect(lines).toEqual(['Formula mcc changed', 'Stage 2: Granulation about changed', 'Stage 3: Filling yield removed']);
+    expect(describeMaster(prev).map((s) => s.title)).toEqual(['Header', 'Formula', 'Stage 1: Binder solution', 'Stage 2: Granulation', 'Stage 3: Filling', 'Stage 4: Coating']);
   });
 
   it('TC-P1 a packing master reads in packing words: the pack and its packing materials, no formula and no coating', () => {

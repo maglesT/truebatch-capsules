@@ -23,7 +23,7 @@ beforeAll(async () => {
   t.master.equipment_.push(
     { ...item('eq-bal', 'BAL-01', 'Balance 60 kg'), kind: 'instrument', type: 'balance', room: 'DSP-01' },
     { ...item('eq-str', 'STR-01', 'Stirrer'), kind: 'equipment', type: 'stirrer', room: 'GRN-01' },
-    { ...item('eq-prs', 'PRS-01', 'Tablet press'), kind: 'equipment', type: 'tablet press', room: 'CMP-01' },
+    { ...item('eq-cf', 'CF-01', 'Capsule filling machine'), kind: 'equipment', type: 'capsule filling machine', room: 'CF-01' },
   );
   const people = {
     author: ['truebatch_capsules.master.author', 'truebatch_capsules.view'], issuer: ['truebatch_capsules.batch.issue'], viewer: ['truebatch_capsules.view'],
@@ -201,8 +201,8 @@ describe('walking a stage', () => {
     expect((await act('viewer', id, '1.1.0.1', 'note', { text: 'x' })).statusCode).toBe(403);
     expect((await act('asha', id, '9.1.0.1', 'start')).json()).toMatchObject({ error: 'no_such_step' });
     await act('asha', id, '1.1.0.1', 'start');
-    const press = await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-prs', gross: 'heavy' } });
-    expect(press.json()).toMatchObject({ error: 'invalid_values', problems: ['PRS-01 is not a balance (master data: tablet press)', 'Gross weight: type a number, e.g. "50.300"'] });
+    const press = await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-cf', gross: 'heavy' } });
+    expect(press.json()).toMatchObject({ error: 'invalid_values', problems: ['CF-01 is not a balance (master data: capsule filling machine)', 'Gross weight: type a number, e.g. "50.300"'] });
     await act('asha', id, '1.1.0.1', 'record', { values: { lot: 'API-2611', ...handLabels('lot', 'lot'), balance: 'eq-bal', ...handLabels('balance', 'machine'), assay: '99.0', lod: '0.5', gross: '11.000', tare: '0.850' } });
     const stale = await act('asha', id, '1.1.0.1', 'done', { proof: proofFor('asha'), contentHash: '0'.repeat(64) });
     expect(stale.json()).toMatchObject({ error: 'content_changed' });
@@ -211,7 +211,7 @@ describe('walking a stage', () => {
   it('TC-11 a machine not active in master data, or of a type the stage does not allow, is refused', async () => {
     t.master.equipment_.push({ ...item('eq-old', 'BAL-09', 'Old balance'), active: false, kind: 'instrument', type: 'balance', room: 'DSP-01' });
     expect((await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-old' } })).json()).toMatchObject({ error: 'inactive_item' });
-    expect((await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-prs' } })).json()).toMatchObject({ error: 'invalid_values' });
+    expect((await act('asha', id, '1.1.0.1', 'record', { values: { balance: 'eq-cf' } })).json()).toMatchObject({ error: 'invalid_values' });
   });
 
   it('TC-11 a machine field takes only the type it asks for, in a room the stage allows; a room only of the stage\'s areas or rooms', () => {
@@ -224,8 +224,8 @@ describe('walking a stage', () => {
     expect(m('SPV-01', 'Vessel', 'GRN-01')).toBe('SPV-01 is not a balance (master data: Vessel)');
     expect(m('BAL-06', 'Balance', 'QCL-02')).toBe('BAL-06 stands in QCL-02 (QC laboratory), a laboratory area: weigh with a balance of a dispensing room of the master or of a room this stage allows');
     expect(m('BAL-07', 'Balance', 'BL-GRN')).toBe('BAL-07 stands in BL-GRN, neither in a dispensing room of the master nor in a room this stage allows (Granulation, DSP-01)');
-    const press = findBlock({ id: 'compress', version: 1 })!.fields.find((f) => f.name === 'machine')!;
-    expect(machineRefusal(stage, press, { code: 'PRS-01', type: 'Tablet press', room: 'GRN-01' }, rooms)).toBe('PRS-01 is not one of the machine types this stage allows (Balance, Vessel)');
+    const filler = findBlock({ id: 'capsule-fill', version: 1 })!.fields.find((f) => f.name === 'machine')!;
+    expect(machineRefusal(stage, filler, { code: 'CF-01', type: 'Capsule filling machine', room: 'GRN-01' }, rooms)).toBe('CF-01 is not one of the machine types this stage allows (Balance, Vessel)');
     expect(rooms.map((r) => roomRefusal(stage, r))).toEqual([null, null, 'QCL-02 is not one of the rooms this stage allows (Granulation, DSP-01)', 'BL-GRN is not one of the rooms this stage allows (Granulation, DSP-01)']);
   });
 
@@ -342,15 +342,26 @@ describe('production approval, QC approval and QA release', () => {
   });
 
   it('TC-20 production cannot sign while anything in the record is open', async () => {
-    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ error: 'not_ready', problems: ['Stage 0 › Check a value against limits: pH is not started', 'Stage 0 › Stage yield is not started', 'Stage Stage 0 is not closed'] });
+    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ error: 'not_ready', problems: ['Stage 0 › Check a value against limits: pH is not started', 'Stage 0 › Stage yield is not started',
+      'Filling › Fill capsules with periodic checks (round 1) is not started', 'Filling › Stage yield is not started', 'Stage Stage 0 is not closed', 'Stage Filling is not closed'] });
     await act('asha', id, '0.1.0.1', 'start');
     await act('asha', id, '0.1.0.1', 'record', { values: { reading: '6.0' } });
     expect((await sign('asha', id, '0.1.0.1', 'done')).statusCode).toBe(200);
     await act('asha', id, '0.1.1.1', 'start');
     await act('asha', id, '0.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
     expect((await sign('asha', id, '0.1.1.1', 'done')).statusCode).toBe(200);
-    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ problems: ['Stage 0 › Stage yield is waiting for its check', 'Stage Stage 0 is not closed'] });
+    expect((await batchSign('sam', 'production-approve')).json()).toMatchObject({ problems: ['Stage 0 › Stage yield is waiting for its check', 'Filling › Fill capsules with periodic checks (round 1) is not started', 'Filling › Stage yield is not started', 'Stage Stage 0 is not closed', 'Stage Filling is not closed'] });
     expect((await sign('ravi', id, '0.1.1.1', 'check')).statusCode).toBe(200);
+    // TC-15: the capsules are filled with one round of fill-weight checks, then the filling yield.
+    await act('asha', id, '1.1.0.1', 'start');
+    expect((await act('asha', id, '1.1.0.1', 'record', { values: { machine: 'eq-cf', ...handLabels('machine', 'machine'), weights: Array(20).fill('175.0'), length: Array(5).fill('19.4'), appearance: 'yes', rejected: '0', fillingDone: 'yes' } })).statusCode).toBe(200);
+    expect((await sign('asha', id, '1.1.0.1', 'done')).statusCode).toBe(200);
+    // The filler typed by hand (the Logbook link is off): a second person checks it (TC-08).
+    expect((await sign('ravi', id, '1.1.0.1', 'check')).statusCode).toBe(200);
+    await act('asha', id, '1.1.1.1', 'start');
+    await act('asha', id, '1.1.1.1', 'record', { values: { output: '0.099', samples: '0.000', rejects: '0.001' } });
+    expect((await sign('asha', id, '1.1.1.1', 'done')).statusCode).toBe(200);
+    expect((await sign('ravi', id, '1.1.1.1', 'check')).statusCode).toBe(200);
     expect((await full()).batch).toMatchObject({ status: 'manufacturing complete', open: [] });
   });
 
@@ -396,7 +407,7 @@ describe('production approval, QC approval and QA release', () => {
     const r = (await as('viewer', 'GET', `/api/batches/${id}/review`)).json() as { status: string; deviations: unknown[]; signatures: { meaning: string; printedName: string }[] };
     expect(r.status).toBe('released');
     expect(r.deviations).toMatchObject([{ reference: 'DEV-26-010', open: false, closed: { personName: 'MEERA' } }]);
-    expect(r.signatures.map((x) => `${x.meaning} ${x.printedName}`)).toEqual(['issued ISSUER', 'performed ASHA', 'performed ASHA', 'verified RAVI', 'production_approved SAM', 'qc_approved QUINN', 'released MEERA']);
+    expect(r.signatures.map((x) => `${x.meaning} ${x.printedName}`)).toEqual(['issued ISSUER', 'performed ASHA', 'performed ASHA', 'verified RAVI', 'performed ASHA', 'verified RAVI', 'performed ASHA', 'verified RAVI', 'production_approved SAM', 'qc_approved QUINN', 'released MEERA']);
   });
 
   it('TC-22 the batch record PDF is produced, with the QC report, the release decision and every signature with its meaning', async () => {

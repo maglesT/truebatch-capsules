@@ -87,14 +87,11 @@ describe('calculation checks ⛔ from the formulation test', () => {
 });
 
 describe('calculation checks ⚠️ from the formulation test', () => {
-  const thin = (d: MasterDoc) => { step(d, 'compression', 'compress').settings.thicknessLimit = { low: '2.0', high: '2.4', unit: 'mm' }; d.header.dieAreaMm2 = '3.1416'; };
   const sizeTest = (limit: object): Change => (d) => { step(d, 'coating', 'qa-hold').settings = { what: 'API lot d90 (certificate)', unit: 'µm', limit: limit as never }; };
   it.each<[string, Change, Change, string, string, string]>([
-    ['F0135 a target weight that does not fit the tooling (79 mg in a 2 mm die 2.2 mm thick is 11.4 g/cm³)',
-      (d) => { thin(d); d.header.fillWeightMg = '79.0'; }, (d) => { thin(d); d.header.fillWeightMg = '7.9'; }, 'tooling/compression/compress', 'stages[2].steps[0]', 'confirmed'],
     ['F0175 a weight target that does not name its stage (compressed to 150 mg, core 250 mg)',
-      (d) => { step(d, 'compression', 'compress').settings.meanLimit = { low: '145.5', high: '154.5', unit: 'mg' }; }, () => {},
-      'weight-stage/compression/compress/meanLimit', 'stages[2].steps[0].settings.meanLimit', 'weight at this step'],
+      (d) => { step(d, 'filling', 'fill').settings.meanLimit = { low: '145.5', high: '154.5', unit: 'mg' }; }, () => {},
+      'weight-stage/filling/fill/meanLimit', 'stages[2].steps[0].settings.meanLimit', 'weight at this step'],
     ['F0204 a solvent-wet API weighed without a solvent correction',
       (d) => { Object.assign(d.formula[0]!, { name: 'Examplol wet cake', adjust: { potency: { basis: 'as is', standardIs: 'anhydrous' } } }); },
       (d) => { d.formula[0]!.name = 'Examplol wet cake'; }, 'solvent-wet/api', 'formula[0]', 'weighed dry'],
@@ -124,22 +121,22 @@ describe('calculation checks ⚠️ from the formulation test', () => {
 
 describe('F4 by rule and F6 with a changing interval (data-level options)', () => {
   it('F4 F0040: a step only for a fill batch of at most 50 kg is in for 25 kg and left out for 75 kg, with no operator choice', () => {
-    const rule = (high: string): Change => (d) => { step(d, 'compression', 'yield').onlyIf = { header: 'fillBatch', limit: { high, unit: 'kg' } }; };
-    const v = (change: Change) => { const d = capsule(); change(d); return openSteps(d, [], at(0)).steps.find((s) => s.stepKey === 'yield' && s.stageKey === 'compression')!; };
+    const rule = (high: string): Change => (d) => { step(d, 'filling', 'yield').onlyIf = { header: 'fillBatch', limit: { high, unit: 'kg' } }; };
+    const v = (change: Change) => { const d = capsule(); change(d); return openSteps(d, [], at(0)).steps.find((s) => s.stepKey === 'yield' && s.stageKey === 'filling')!; };
     expect(v(rule('50')).state).not.toBe('not_applicable'); // 250 mg × 100 000 = 25 kg
     expect(v(rule('20'))).toMatchObject({ state: 'not_applicable', leftOut: expect.stringMatching(/only when the fill batch weight is/) });
-    expect(only('error', 'stages[2].steps[1].onlyIf')((d) => { step(d, 'compression', 'yield').onlyIf = { header: 'fillBatch', limit: { high: '50', unit: 'capsules' } }; }))
+    expect(only('error', 'stages[2].steps[1].onlyIf')((d) => { step(d, 'filling', 'yield').onlyIf = { header: 'fillBatch', limit: { high: '50', unit: 'capsules' } }; }))
       .toEqual([expect.stringMatching(/The rule for leaving the step out: .*cannot be converted/)]);
   });
 
   it('F6 F0030: checks every 30 min, then every 15 min after 60 min; a later interval above 30 min is TC-15', () => {
     const d = capsule();
-    step(d, 'compression', 'compress').everyMinutesLater = { afterMinutes: 60, everyMinutes: 15 };
+    step(d, 'filling', 'fill').everyMinutesLater = { afterMinutes: 60, everyMinutes: 15 };
     expect(checks(d)).toEqual([]);
     const events = [ev('started', '2.1.0.1', { min: 0 }), ev('started', '2.1.0.2', { min: 30 }), ev('started', '2.1.0.3', { min: 60 })];
     const t = timers(d, events, at(61)).find((x) => x.kind === 'periodic' && x.key.round === 4)!;
-    expect([t.at.getTime() - at(0).getTime(), t.label]).toEqual([75 * 60_000, 'Check 4 of “Compress with periodic checks” (every 15 min)']);
-    step(d, 'compression', 'compress').everyMinutesLater = { afterMinutes: 60, everyMinutes: 45 };
+    expect([t.at.getTime() - at(0).getTime(), t.label]).toEqual([75 * 60_000, 'Check 4 of “Fill capsules with periodic checks” (every 15 min)']);
+    step(d, 'filling', 'fill').everyMinutesLater = { afterMinutes: 60, everyMinutes: 45 };
     expect(checks(d).map((p) => p.message)).toEqual(['Periodic checks every 45 min: they must be at least every 30 min']);
   });
 });

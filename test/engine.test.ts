@@ -144,7 +144,7 @@ describe('openSteps', () => {
   it('sub-batch: N numbered copies run side by side; the stage closes when all are done', () => {
     const doc = small([{ kind: 'sub-batch', count: 3 }, {}]);
     const ids = openSteps(doc, [], at(0)).steps.map((s) => `${s.id} ${s.state}`);
-    expect(ids).toEqual(['0.1.0.1 open', '0.2.0.1 open', '0.3.0.1 open', '1.1.0.1 waiting']);
+    expect(ids).toEqual(['0.1.0.1 open', '0.2.0.1 open', '0.3.0.1 open', '1.1.0.1 waiting', '2.1.0.1 waiting', '2.1.1.1 waiting']);
     const two = ['0.1.0.1', '0.2.0.1'].flatMap((k) => [ev('started', k), ev('done', k)]);
     expect(stateOf(doc, two, '1.1.0.1')).toBe('waiting');
     expect(stateOf(doc, [...two, ev('started', '0.3.0.1'), ev('done', '0.3.0.1')], '1.1.0.1')).toBe('open');

@@ -270,7 +270,8 @@ describe('TC-12 MMS: only released, in-date lots of the material; certificate va
   const granulation = () => {
     const d = capsule();
     const g = d.stages[1]!;
-    d.stages = [{ ...g, uses: [], steps: [g.steps[0]!, g.steps[2]!, g.steps[6]!] }];
+    // Every capsule master fills (TC-01): the filling stage stays, on its own.
+    d.stages = [{ ...g, uses: [], steps: [g.steps[0]!, g.steps[2]!, g.steps[6]!] }, { ...d.stages[2]!, uses: [] }];
     return d;
   };
   beforeAll(async () => {

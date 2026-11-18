@@ -41,7 +41,7 @@ describe('master checks', () => {
   });
 
   it('TC-11 a stage that works machines or names a room, with no rooms chosen, is an error; balances alone and the line a packing batch is issued to are not', () => {
-    expect(masterChecks(capsule()).filter((p) => p.rule === 'TC-11').map((p) => `${p.path}: ${p.message}`)).toEqual(['Binder solution', 'Granulation', 'Compression', 'Coating']
+    expect(masterChecks(capsule()).filter((p) => p.rule === 'TC-11').map((p) => `${p.path}: ${p.message}`)).toEqual(['Binder solution', 'Granulation', 'Filling', 'Coating']
       .map((name, i) => `stages[${i}].roomTypes: Stage ${name}: choose the rooms this stage may run in (an area or a room of master data, in the stage settings)`));
     const d = placed(capsule());
     d.stages[0]!.roomTypes = [];
@@ -56,17 +56,17 @@ describe('master checks', () => {
   it.each<[string, (d: MasterDoc) => void, string]>([
     ['weighing', (d) => { step(d, 'granulation', 'weigh-api').checker = false; }, 'error TC-08 stages[1].steps[0]: A weighing step needs a second-person check'],
     ['charge-in', (d) => { step(d, 'granulation', 'charge-api').checker = false; }, 'error TC-08 stages[1].steps[2]: A charge-in step needs a second-person check'],
-    ['yield', (d) => { step(d, 'compression', 'yield').checker = false; }, 'error TC-08 stages[2].steps[1]: A yield step needs a second-person check'],
+    ['yield', (d) => { step(d, 'filling', 'yield').checker = false; }, 'error TC-08 stages[2].steps[1]: A yield step needs a second-person check'],
     ['critical', (d) => { step(d, 'granulation', 'granulate').critical = true; }, 'error TC-08 stages[1].steps[3]: A critical step needs a second-person check'],
   ])('TC-08 a %s step without a second-person check is an error', (_what, change, want) => {
     expect(after(change)).toEqual([want]);
   });
 
   it('TC-10 a stage worked in a room without a line clearance step is an error; line clearance not first is a warning', () => {
-    expect(after((d) => { d.stages[2]!.roomTypes = ['Compression']; })).toEqual(['error TC-10 stages[2]: Stage Compression is worked in a room but has no line clearance step']);
+    expect(after((d) => { d.stages[2]!.roomTypes = ['Compression']; })).toEqual(['error TC-10 stages[2]: Stage Filling is worked in a room but has no line clearance step']);
     const clearance = { key: 'line-clearance', block: { id: 'line-clearance', version: 1 }, checker: true, waitForCheck: false, critical: false, settings: {}, flow: { kind: 'none' as const } };
     expect(after((d) => { d.stages[2]!.roomTypes = ['Compression']; d.stages[2]!.steps.unshift(clearance); })).toEqual([]);
-    expect(after((d) => { d.stages[2]!.steps.push(clearance); })).toEqual(['warning - stages[2].steps[2]: Line clearance is not the first step of Compression']);
+    expect(after((d) => { d.stages[2]!.steps.push(clearance); })).toEqual(['warning - stages[2].steps[2]: Line clearance is not the first step of Filling']);
     expect(after((d) => { d.stages[2]!.steps.unshift({ ...clearance, checker: false }); }))
       .toEqual(['error TC-08 stages[2].steps[0]: A line clearance step needs a second-person check']);
   });
@@ -76,12 +76,12 @@ describe('master checks', () => {
   });
 
   it('a stage without a yield step is an error (a preparation needs none)', () => {
-    expect(after((d) => { d.stages[2]!.steps.pop(); })).toEqual(['error - stages[2]: Stage Compression has no yield step']);
+    expect(after((d) => { d.stages[2]!.steps.pop(); })).toEqual(['error - stages[2]: Stage Filling has no yield step']);
   });
 
   it('TC-01 the shell: its type and weight are named, and the shell lines add up to the shell weight per capsule', () => {
     expect(after((d) => { delete d.header.shellType; })).toEqual(['error TC-01 header.shellType: The master names no shell type (hard gelatin, HPMC or soft gelatin)']);
-    expect(after((d) => { delete d.header.shellWeightMg; })).toEqual(['error TC-01 header.shellWeightMg: The master has no mean empty shell weight']);
+    expect(errors((d) => { delete d.header.shellWeightMg; })).toEqual(['error TC-01 header.shellWeightMg: The master has no mean empty shell weight']);
     expect(after((d) => { d.formula[7]!.mgPerCapsule = '76.0'; })).toEqual(['error TC-01 formula: The shell lines add up to 76 mg per capsule, not the shell weight 75.0 mg']);
     expect(after((d) => { d.formula.pop(); })).toEqual(['error TC-01 formula: The formula has no empty shell line (place: shell)']);
     expect(after((d) => { d.formula.push({ ...d.formula[7]!, key: 'shell-2', materialItemId: 'mat-sh2', code: 'MAT-009', name: 'Empty HPMC capsule size 1', mgPerCapsule: '0' }); })).toEqual(['error TC-01 formula: A hard capsule has one empty shell line']);
@@ -91,8 +91,20 @@ describe('master checks', () => {
       d.formula.splice(7, 1, ...[['gel', 'Gelatin', '150.0'], ['gly', 'Glycerol', '60.0'], ['gwat', 'Purified water (gel mass)', '90.0']]
         .map(([key, name, mg]) => ({ ...d.formula[7]!, key: key!, materialItemId: `mat-${key}`, code: key!.toUpperCase(), name: name!, mgPerCapsule: mg! })));
     };
-    expect(after(soft)).toEqual([]);
-    expect(after((d) => { soft(d); delete d.header.shellWeightMg; })).toEqual(['error TC-01 header.shellWeightMg: The master has no wet gel mass per capsule']);
+    // TC-01: a soft gel master is encapsulated and dried to an end point (the fixture fills hard capsules).
+    expect(errors(soft)).toEqual(['error TC-01 stages: A soft gel master needs an encapsulation step',
+      'error TC-01 stages: A soft gel master needs a drying step with its end point (hardness or shell water content)']);
+    expect(errors((d) => { soft(d); delete d.header.shellWeightMg; })[0]).toBe('error TC-01 header.shellWeightMg: The master has no wet gel mass per capsule');
+  });
+
+  it('TC-24 a US OTC two-piece hard capsule master needs a banding or sealing step (211.132(b)(2)); other markets and soft gels do not', () => {
+    const band = { key: 'band', block: { id: 'capsule-band', version: 1 }, checker: false, waitForCheck: false, critical: false, everyMinutes: 30,
+      flow: { kind: 'repeat-until' as const, maxRounds: 40 }, settings: { tempLimit: { low: '45', high: '55', unit: '°C' } } };
+    expect(errors((d) => { d.header.usOtc = true; })).toEqual(['error TC-24 stages: A US OTC hard capsule product must be sealed: add a banding or sealing step']);
+    expect(errors((d) => { d.header.usOtc = true; d.stages[2]!.steps.splice(1, 0, band); })).toEqual([]);
+    expect(errors((d) => { d.header.usOtc = false; })).toEqual([]);
+    // TC-01: a capsule master fills with fill-weight checks.
+    expect(errors((d) => { d.stages[2]!.steps.shift(); }).filter((p) => p.includes('TC-01'))).toEqual(['error TC-01 stages: The master has no capsule filling or encapsulation step with fill-weight checks']);
   });
 
   it('the formula must add up to the theoretical fill weight (coating, shell and solvents left out)', () => {
@@ -119,31 +131,31 @@ describe('master checks', () => {
   });
 
   it('TC-01 a limit or a typed target in a unit of another kind than the value it checks is an error (every reading would be refused)', () => {
-    expect(errors((d) => { step(d, 'compression', 'compress').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'min' }; }))
-      .toEqual(['error TC-01 stages[2].steps[0].settings.meanLimit: Mean weight limits: min is a time, but the value checked is a mass. Choose a unit of that kind (in min every reading would be refused at batch time)']);
+    expect(errors((d) => { step(d, 'filling', 'fill').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'min' }; }))
+      .toEqual(['error TC-01 stages[2].steps[0].settings.meanLimit: Mean filled-capsule weight limits: min is a time, but the value checked is a mass. Choose a unit of that kind (in min every reading would be refused at batch time)']);
     expect(errors((d) => { step(d, 'coating', 'qa-hold').settings = { what: 'Weight', unit: 'mg', limit: { low: '95', high: '105', unit: '%' } }; }))
       .toEqual(['error TC-01 stages[3].steps[1].settings.limit: Limits: % is a percentage, but the value checked is a mass. Choose a unit of that kind (in % every reading would be refused at batch time)']);
     expect(errors((d) => { step(d, 'granulation', 'yield').settings.yieldLimit = { low: '97.0', high: '100.5', unit: 'kg' }; })).toHaveLength(1);
     expect(errors((d) => { step(d, 'granulation', 'weigh-lactose').settings.target = '12.0 min'; })).toEqual([expect.stringMatching(/^error TC-01 stages\[1\]\.steps\[1\]\.settings\.target: .*min is a time, but the value checked is a mass/)]);
     // A unit not in the list is refused as before; a unit of the same kind, or °C on a temperature difference, is not a kind problem.
-    expect(errors((d) => { step(d, 'compression', 'compress').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'F-min' }; })).toEqual([expect.stringMatching(/"F-min" is not in the unit list/)]);
-    expect(errors((d) => { Object.assign(step(d, 'compression', 'compress').settings, { meanLimit: { low: '0.245', high: '0.255', unit: 'g' }, hardnessLimit: { low: '6', high: '12', unit: 'kp' } }); })).toEqual([]);
+    expect(errors((d) => { step(d, 'filling', 'fill').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'F-min' }; })).toEqual([expect.stringMatching(/"F-min" is not in the unit list/)]);
+    expect(errors((d) => { Object.assign(step(d, 'filling', 'fill').settings, { meanLimit: { low: '0.317', high: '0.333', unit: 'g' }, lengthLimit: { low: '1.90', high: '1.98', unit: 'cm' } }); })).toEqual([]);
     expect(errors((d) => { step(d, 'granulation', 'weigh-lactose').settings.target = '12.0 kg'; })).toEqual([]);
   });
 
   it('a limit of the wrong unit kind is refused at batch time too: C1 and T7 refuse the reading, nothing is compared', () => {
     const d = capsule();
-    step(d, 'compression', 'compress').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'min' };
+    step(d, 'filling', 'fill').settings.meanLimit = { low: '245.0', high: '255.0', unit: 'min' };
     const r = evaluate(d, [], { stage: 2, sub: 1, step: 0, round: 1 }, { weights: Array(20).fill({ value: '250.0', unit: 'mg' }) });
     expect(r.meanWeight).toEqual({ ok: false, message: 'mg (mass) cannot be converted to min (time)' });
   });
 
-  it('TC-15 compression checks more than 30 minutes apart, or with no interval, are an error', () => {
-    expect(after((d) => { step(d, 'compression', 'compress').everyMinutes = 45; }))
+  it('TC-15 fill-weight checks more than 30 minutes apart, or with no interval, are an error', () => {
+    expect(after((d) => { step(d, 'filling', 'fill').everyMinutes = 45; }))
       .toEqual(['error TC-15 stages[2].steps[0].everyMinutes: Periodic checks every 45 min: they must be at least every 30 min']);
-    expect(after((d) => { delete step(d, 'compression', 'compress').everyMinutes; }))
-      .toEqual(['error TC-15 stages[2].steps[0].everyMinutes: Compress with periodic checks needs the interval of its periodic checks']);
-    expect(after((d) => { step(d, 'compression', 'compress').everyMinutes = 30; })).toEqual([]);
+    expect(after((d) => { delete step(d, 'filling', 'fill').everyMinutes; }))
+      .toEqual(['error TC-15 stages[2].steps[0].everyMinutes: Fill capsules with periodic checks needs the interval of its periodic checks']);
+    expect(after((d) => { step(d, 'filling', 'fill').everyMinutes = 30; })).toEqual([]);
   });
 
   it('a repeat-until step without the most rounds, or without a stop check, is an error', () => {
@@ -155,10 +167,10 @@ describe('master checks', () => {
 
   it('a reference to a field that does not exist, comes later, or is inside another sub-batch stage is an error', () => {
     const coat = (ref: string) => after((d) => { step(d, 'coating', 'coat').settings.coreWeight = { ref }; });
-    expect(coat('compression/compress/nothing')).toEqual(['error - stages[3].steps[0].settings.coreWeight: compression/compress/nothing: step compress has no field or calculation nothing']);
+    expect(coat('filling/fill/nothing')).toEqual(['error - stages[3].steps[0].settings.coreWeight: filling/fill/nothing: step fill has no field or calculation nothing']);
     expect(coat('coating/yield/yield')).toEqual(['error - stages[3].steps[0].settings.coreWeight: coating/yield/yield comes later than this step']);
     expect(coat('nowhere/x/y')).toEqual(['error - stages[3].steps[0].settings.coreWeight: nowhere/x/y: no such stage and step']);
-    expect(after((d) => { step(d, 'compression', 'yield').settings.theoretical = { ref: 'coating/coat/gain' }; }))
+    expect(after((d) => { step(d, 'filling', 'yield').settings.theoretical = { ref: 'coating/coat/gain' }; }))
       .toEqual(['error - stages[2].steps[1].settings.theoretical: coating/coat/gain comes later than this step']);
   });
 
@@ -206,18 +218,23 @@ describe('calculation checks', () => {
     expect(only('error', 'formula[4].adjust.compensates')(mccCompensates('10.0'))).toEqual([]);
   });
 
-  it('calculation check ⛔ weight variation on coated capsules other than film-coated: the block offers no other coating, and T14 refuses it', () => {
+  it('TC-14 weight variation on the net contents: the dosage unit fits the shell; a suspension soft gel uses content uniformity', () => {
     const uniformity = (coating: string): Change => (d) => {
       d.stages[2]!.steps.splice(1, 0, { key: 'uniformity', block: { id: 'uniformity-by-weight', version: 1 }, checker: true, waitForCheck: false, critical: false,
         settings: { coating, labelClaim: '100 mg' }, flow: { kind: 'none' } });
     };
-    expect(errors(uniformity('sugar-coated'))).toEqual(['error - stages[2].steps[1].settings.coating: Coating: choose one of uncoated, film-coated']);
-    expect(errors(uniformity('film-coated'))).toEqual([]);
+    expect(errors(uniformity('sugar-coated'))).toEqual(['error - stages[2].steps[1].settings.coating: Dosage unit: choose one of hard capsule, soft capsule, solution fill']);
+    expect(errors(uniformity('hard capsule'))).toEqual([]);
+    expect(errors(uniformity('soft capsule, solution fill'))).toEqual(['error TC-14 stages[2].steps[1].settings.coating: The dosage unit "soft capsule, solution fill" does not fit a hard shell']);
     const d = capsule();
-    uniformity('sugar-coated')(d);
-    const weights = Array.from({ length: 10 }, () => ({ value: '250.0', unit: 'mg' }));
-    expect(evaluate(d, [], { stage: 2, sub: 1, step: 1, round: 1 }, { weights, assay: { value: '99.0', unit: '%' } }).acceptance)
-      .toEqual({ ok: false, message: 'The weight-variation method is not allowed for sugar-coated tablets: only uncoated and film-coated tablets may use it. Test content uniformity on individual units' });
+    uniformity('hard capsule')(d);
+    // Each capsule 325.0 mg full, 75.0 mg empty: 250.0 mg net; assay 99.0 %: every content 99.0 %, AV 0.0.
+    const net = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`c${i + 1}`, [{ value: '325.0', unit: 'mg' }, { value: '75.0', unit: 'mg' }]]));
+    const key = { stage: 2, sub: 1, step: 1, round: 1 };
+    expect(evaluate(d, [], key, { ...net, assay: { value: '99.0', unit: '%' } } as never).acceptance).toMatchObject({ ok: true, check: { pass: true } });
+    d.stages[2]!.steps[1]!.settings.coating = 'soft capsule, suspension fill';
+    expect(evaluate(d, [], key, { ...net, assay: { value: '99.0', unit: '%' } } as never).acceptance)
+      .toEqual({ ok: false, message: 'The weight-variation method is not allowed for soft capsules with a suspension, emulsion or gel fill. Test content uniformity on individual units' });
   });
 
   it('calculation check ⛔ a liquid make-up the templates refuse is shown on its step before any batch (T17)', () => {

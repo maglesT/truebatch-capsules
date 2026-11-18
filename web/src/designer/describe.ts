@@ -92,7 +92,7 @@ export function describeMaster(doc: MasterDoc, units?: Units): Section[] {
     { key: 'header', title: 'Header', lines: [
       { key: 'product', text: `Product ${h.productCode}, ${h.productName}.` },
       { key: 'batch', text: `Batch size ${grouped(h.batchSize)} capsules.` },
-      { key: 'weights', text: `Theoretical fill weight ${h.fillWeightMg} mg per capsule${h.coatedWeightMg ? `; coated weight ${h.coatedWeightMg} mg` : '; uncoated'}${h.dieAreaMm2 ? `; die bore area ${h.dieAreaMm2} mm²` : ''}.` },
+      { key: 'weights', text: `Theoretical fill weight ${h.fillWeightMg} mg per capsule${h.coatedWeightMg ? `; coated weight ${h.coatedWeightMg} mg` : '; uncoated'}${h.shellType ? `; shell ${h.shellType}${h.shellSize ? ` size ${h.shellSize}` : ''}, ${h.shellType === 'soft gelatin' ? 'wet gel mass' : 'mean empty shell'} ${h.shellWeightMg ?? '(not set)'} mg` : '; shell (not set)'}${h.usOtc ? '; US OTC (sealed)' : ''}.` },
       ...(h.dispensingRooms?.length ? [{ key: 'dispensing', text: `Weighed in the dispensing rooms ${h.dispensingRooms.join(', ')}.` }] : []),
       ...(h.otherStrengths ?? []).map((x, n) => ({ key: `strength:${n}`, text: `Also compressed from the same blend: ${x.name}, label claim ${x.labelClaim}, fill weight ${x.fillWeightMg} mg.` })),
     ] },

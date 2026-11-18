@@ -141,8 +141,6 @@ export const headerSchema = z.object({
   // TC-24: a US OTC product: a two-piece hard capsule needs a sealing (banding) step.
   usOtc: z.boolean().optional(),
   coatedWeightMg: decimal.optional(),
-  // The die bore area from the tooling record, to check that the target weight fits the tooling (F0135).
-  dieAreaMm2: decimal.optional(),
   // Other strengths compressed from the same blend at their own fill weight (F0225, F0366).
   otherStrengths: z.array(z.object({ name: text().min(1), labelClaim: text(40), fillWeightMg: decimal, shellSize: text(20).optional(), shellWeightMg: decimal.optional() }).strict()).max(10).optional(),
   // TC-11: the rooms of master data (codes) where this product's materials are weighed; a balance is offered there or

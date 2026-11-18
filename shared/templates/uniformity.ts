@@ -15,6 +15,11 @@
  * of the unit weight. Refused for sugar-coated and other coated tablets (a safety rule), and when the master
  * sets "individual results only" (drug in the coat, pellet tablets).
  *
+ * Capsules (TrueBatch Capsules, data change 3): weight variation on the NET contents (each capsule full − empty shell,
+ * or − washed shell). "hard capsule": the same 25 mg / 25 % rule as tablets. "soft capsule, solution fill": allowed
+ * whatever the dose (the chapters allow it for soft capsules filled with a solution). Soft capsules with a suspension,
+ * emulsion or gel fill use content uniformity: the master check refuses the weight-variation block for them.
+ *
  * Large-sample option (Ph. Eur. 2.9.47, many units, e.g. real-time release): the same AV with the k for that
  * sample size and the number of units allowed outside the 0.75M–1.25M band both taken from the chapter's
  * table by the master; this library does not hold that table.
@@ -23,7 +28,7 @@ import { Dec, fmt, HUNDRED, needKind, parse, percent, refuse, run, show, to, uni
 import { checkLimit, type Check } from './rounding.js';
 import { readSeries, stats, type Series } from './series.js';
 
-export type Coating = 'uncoated' | 'film-coated' | 'sugar-coated' | 'other coated';
+export type Coating = 'uncoated' | 'film-coated' | 'sugar-coated' | 'other coated' | 'hard capsule' | 'soft capsule, solution fill' | 'soft capsule, suspension fill';
 
 export type T14Input = {
   readonly coating: Coating;
@@ -78,18 +83,23 @@ export function t14ContentUniformity(i: T14Input): Outcome<T14Extra> {
     let how: string;
     if (i.method === 'weight variation') {
       if (i.individualResultsOnly === true) refuse('This product is set to "individual results only" (drug in the coat or pellets): the weight-variation method cannot be used; test content uniformity on individual units');
+      if (i.coating === 'soft capsule, suspension fill') {
+        refuse('The weight-variation method is not allowed for soft capsules with a suspension, emulsion or gel fill. Test content uniformity on individual units');
+      }
       if (i.coating === 'sugar-coated' || i.coating === 'other coated') {
         refuse(`The weight-variation method is not allowed for ${i.coating} tablets: only uncoated and film-coated tablets may use it. Test content uniformity on individual units`);
       }
       const ws = readSeries(i.weights, 'Weight');
       for (const w of ws) needKind(w, ['mass'], 'Each unit weight');
+      // A capsule's net content (full − shell) of zero or less is a wrong weighing, never a content.
+      if (ws.some((w) => !w.v.isPositive() || w.v.isZero())) refuse('Each unit weight must be more than zero (a capsule full less its shell): check the weighings');
       const s = stats(ws);
       const assay = percent(i.assay, 'The assay');
       const claim = parse(i.labelClaim, 'The label claim');
       needKind(claim, ['mass'], 'The label claim');
       const claimMg = to(claim, 'mg');
       const meanMg = to({ v: s.mean, unit: s.unit, text: '' }, 'mg');
-      if (claimMg.lt(25) || claimMg.div(meanMg).times(HUNDRED).lt(25)) {
+      if (i.coating !== 'soft capsule, solution fill' && (claimMg.lt(25) || claimMg.div(meanMg).times(HUNDRED).lt(25))) {
         refuse(`The weight-variation method needs at least 25 mg of drug making up at least 25 % of the unit weight; here ${claim.text} in ${fmt(meanMg, 1)} mg (${fmt(claimMg.div(meanMg).times(HUNDRED), 1)} %). Test content uniformity on individual units`);
       }
       contents = ws.map((w) => to(w, s.unit).times(assay.v).div(s.mean));

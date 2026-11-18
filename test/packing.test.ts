@@ -233,6 +233,7 @@ describe('the packing blocks', () => {
 
   it('TC-21 a packed batch: QC approves it after production approval (the QC report), and QA releases it only after QC', () => {
     const p = { ...small([{ steps: [{}] }]), pack: packing().pack };
+    p.stages = p.stages.filter((s) => s.key !== 'fill'); // a packing master fills nothing
     const approved: BatchEvent[] = [{ id: 1, kind: 'production_approved', payload: {}, person: 5, at: at(50) }];
     const qcApproved: BatchEvent[] = [...approved, { id: 2, kind: 'qc_approved', payload: { reportNo: 'QC-26-0101' }, person: 4, at: at(55) }];
     const events = [ev('started', '0.1.0.1', { min: 1 }), ev('value', '0.1.0.1', { min: 2, payload: { values: { reading: { value: '6.0', unit: '' } }, results: {} } }), ev('done', '0.1.0.1', { min: 3 })];

@@ -3,7 +3,7 @@ import {
   batchRefusal, batchView, cutShort, evaluate, notYetText, openSteps, review,
   type BatchAction, type BatchEvent, type BatchEventKind, type StepEvent,
 } from '../shared/engine/index.js';
-import { at, ev, fail, pass, reading, small } from './engine-fixture.js';
+import { at, ev, fail, fillEvents, pass, reading, small } from './engine-fixture.js';
 import { batchRecordDoc } from '../server/batch-record.js';
 
 // The batch status and its signatures (TC-20, TC-21), computed from step events and batch events.
@@ -21,7 +21,7 @@ type Who = keyof typeof people;
 // One checked step and one optional step marked not applicable.
 const doc = small([{ steps: [{ checker: true }, { flow: { kind: 'optional-with-reason' } }] }]);
 const started = [ev('started', '0.1.0.1', { min: 1 }), ev('done', '0.1.0.1', { min: 2 })];
-const complete = [...started, ev('checked', '0.1.0.1', { person: 2, min: 3 }), ev('not_applicable', '0.1.1.1', { min: 4, payload: { reason: 'Not needed' } })];
+const complete = [...started, ev('checked', '0.1.0.1', { person: 2, min: 3 }), ev('not_applicable', '0.1.1.1', { min: 4, payload: { reason: 'Not needed' } }), ...fillEvents(doc, 10)];
 const deviation = ev('note', '0.1.0.1', { min: 5, payload: { text: 'pH re-measured', reference: 'DEV-26-001' } });
 const close = be('deviation_closed', { note: deviation.id, reason: 'Investigation closed' });
 const approved = [be('production_approved'), be('qc_approved', { reportNo: 'QC-26-0042' })];
@@ -88,7 +88,7 @@ describe('batch signatures', () => {
       ev('value', `0.1.0.${round}`, { min: start + 1, payload: { values: {}, results: evaluate(d, [], { stage: 0, sub: 1, step: 0, round }, { reading: { value: pass ? '6.0' : '8.0', unit: '' } }) } }),
       ev('done', `0.1.0.${round}`, { min: start + 2 })];
     // Round 1 out of limits, round 2 started at 40 min: 10 minutes late.
-    const events = [...r(1, 0, false), ...r(2, 40, true)];
+    const events = [...r(1, 0, false), ...r(2, 40, true), ...fillEvents(d, 50)];
     const v = view(events, [], d);
     expect(v.status).toBe('manufacturing complete');
     expect(batchRefusal('production-approve', v, people.supervisor)?.problems).toEqual(['Check 2 of “Check a value against limits: pH” (every 30 min) ran over: a deviation note is needed']);
@@ -134,7 +134,7 @@ describe('the review list for QA', () => {
     const round = (r: number, ok: boolean) => [ev('started', `0.1.0.${r}`), reading(`0.1.0.${r}`, { readingCheck: ok ? pass : fail }), ev('done', `0.1.0.${r}`)];
     const dried = [...round(1, false), ...round(2, true)];
     expect(review(d, dried, [], at(1000)).outOfLimits).toEqual([]);
-    expect(batchView(d, dried, [], at(1000)).open).toEqual([]);
+    expect(batchView(d, [...dried, ...fillEvents(d, 50)], [], at(1000)).open).toEqual([]);
     const never = [...round(1, false), ...round(2, false), ...round(3, false)];
     expect(review(d, never, [], at(1000)).outOfLimits.map((o) => o.step)).toEqual(['0.1.0.3']);
     expect(notYetText('2.150 % rounded to 1 decimal = 2.2 %; limit 2.5 to 3.5 %: OUT OF LIMITS (below the lower limit)')).toBe('2.150 % rounded to 1 decimal = 2.2 %; limit 2.5 to 3.5 %: not reached yet, the rounds go on');
@@ -150,7 +150,7 @@ describe('the review list for QA', () => {
     // Round 1 did not pass and round 2 followed; round 2 was started and did not pass when QA terminated the batch.
     const events = [ev('started', '0.1.0.1'), reading('0.1.0.1', { readingCheck: notPassed }), ev('done', '0.1.0.1'), ev('started', '0.1.0.2'), reading('0.1.0.2', { readingCheck: notPassed })];
     const { steps } = openSteps(d, events, at(1000));
-    expect(steps.map((v) => [v.id, v.notYet, cutShort(true, v, steps), cutShort(false, v, steps)])).toEqual([['0.1.0.1', 'readingCheck', false, false], ['0.1.0.2', 'readingCheck', true, false]]);
+    expect(steps.filter((v) => v.id.startsWith('0.')).map((v) => [v.id, v.notYet, cutShort(true, v, steps), cutShort(false, v, steps)])).toEqual([['0.1.0.1', 'readingCheck', false, false], ['0.1.0.2', 'readingCheck', true, false]]);
     const record = (batchEvents: BatchEvent[]) => JSON.stringify(batchRecordDoc({ batch: { id: 1, batchNo: 'TB260099', masterVersionId: 1, issuedBy: 1, issuedAt: at(0) }, doc: d,
       events: events.map((e) => ({ ...e, personName: 'RAMESH' })), batchEvents: batchEvents.map((b) => ({ ...b, personName: 'MEERA' })), now: at(1000), versionNo: 1, issuedByName: 'SUPER', signatures: [] }, 'QA'));
     const ended = record([be('rejected', { terminated: true, reason: 'The dryer broke down' })]);
@@ -168,6 +168,6 @@ describe('the review list for QA', () => {
     const { steps: steps3 } = openSteps(d, events3, at(1000));
     const r3 = steps3.find((v) => v.id === '0.1.0.3');
     expect(r3 && ['waiting', 'open'].includes(r3.state)).toBe(true);
-    expect(steps3.filter((v) => v.id !== '0.1.0.3').map((v) => [v.id, cutShort(true, v, steps3)])).toEqual([['0.1.0.1', false], ['0.1.0.2', true]]);
+    expect(steps3.filter((v) => v.id !== '0.1.0.3' && v.id.startsWith('0.')).map((v) => [v.id, cutShort(true, v, steps3)])).toEqual([['0.1.0.1', false], ['0.1.0.2', true]]);
   });
 });

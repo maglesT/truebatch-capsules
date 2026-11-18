@@ -8,17 +8,22 @@ import { pack } from './packing-fixture.js';
 // share a word with them and must not be offered (filter press, air compressor, dry heat steriliser, case packer).
 const TYPES = ['Balance', 'Analytical balance', 'Micro balance', 'IPC balance', 'Platform balance', 'Bin blender', 'Blender', 'Auto coater', 'Blister packer',
   'Strip packer', 'High speed blister line', 'Rapid mixer granulator', 'Fluid bed dryer', 'Tablet compression machine', 'Tablet press', 'Cold forming machine',
-  'Filter press', 'Air compressor', 'Dry heat steriliser', 'Case packer', 'Sifter', 'Multimill', 'Friabilator', 'Disintegration tester', 'Manufacturing vessel'];
+  'Filter press', 'Air compressor', 'Dry heat steriliser', 'Case packer', 'Sifter', 'Multimill', 'Friabilator', 'Disintegration tester', 'Manufacturing vessel',
+  // Capsules (the demo's capsule machine types, set up on screens).
+  'Capsule filling machine', 'Softgel encapsulation machine', 'Gelatin melter', 'Tumble dryer', 'Metal detector', 'Capsule banding machine', 'Capsule polishing machine', 'Checkweigher'];
 const MACHINES = TYPES.map((type, i) => ({ code: `EQ-${i}`, type, room: null }));
 const BALANCES = ['Balance', 'IPC balance', 'Platform balance'];
 const BLENDERS = ['Bin blender', 'Blender'];
 const LINES = ['Blister packer', 'Strip packer', 'High speed blister line', 'Cold forming machine'];
 const OFFERS: Record<string, string[]> = {
   'weigh.balance': BALANCES, 'lubricate.balance': BALANCES, 'lubricate.machine': BLENDERS, 'blend-uniformity.machine': BLENDERS,
-  'dry-mix.machine': [...BLENDERS, 'Rapid mixer granulator'], 'granulate.machine': ['Rapid mixer granulator'], 'dry.machine': ['Fluid bed dryer'],
-  'compress.machine': ['Tablet compression machine', 'Tablet press'], 'spray-coat.machine': ['Auto coater'], 'sift.machine': ['Sifter'],
-  'sieve.machine': ['Sifter', 'Multimill'], 'binder-solution.machine': ['Manufacturing vessel'], 'coating-suspension.machine': ['Manufacturing vessel'],
-  'charge.machine': [...BLENDERS, 'Rapid mixer granulator', 'Fluid bed dryer', 'Manufacturing vessel'], 'friability.machine': ['Friabilator'], 'disintegration.machine': ['Disintegration tester'],
+  'dry-mix.machine': [...BLENDERS, 'Rapid mixer granulator'], 'granulate.machine': ['Rapid mixer granulator'], 'dry.machine': ['Fluid bed dryer', 'Tumble dryer'],
+  'sift.machine': ['Sifter'],
+  'sieve.machine': ['Sifter', 'Multimill'], 'binder-solution.machine': ['Manufacturing vessel'],
+  'charge.machine': [...BLENDERS, 'Rapid mixer granulator', 'Fluid bed dryer', 'Manufacturing vessel'], 'disintegration.machine': ['Disintegration tester'],
+  'capsule-fill.machine': ['Capsule filling machine'], 'softgel-encapsulate.machine': ['Softgel encapsulation machine'], 'gel-mass.machine': ['Manufacturing vessel', 'Gelatin melter'],
+  'softgel-dry.machine': ['Tumble dryer'], 'metal-check.machine': ['Metal detector'], 'capsule-band.machine': ['Capsule banding machine'],
+  'polish-print.machine': ['Capsule polishing machine'], 'uniformity-by-weight.balance': BALANCES, 'mix.machine': [...BLENDERS, 'Rapid mixer granulator', 'Manufacturing vessel'],
   'bulk-issue.line': LINES, 'pack-clearance.line': LINES, 'pack-clearance-after.line': LINES,
 };
 
