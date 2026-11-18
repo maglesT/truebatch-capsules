@@ -112,8 +112,14 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       for (const c of block.calcs) { const r = now[c.name]; if (r && !r.ok) error(p, `${c.label}: ${r.message}`); }
       if (st.flow.kind === 'repeat-until') {
         if (!st.flow.maxRounds) error(`${p}.flow`, 'A repeat-until step needs the most rounds allowed');
-        const stop = st.flow.stop ?? block.stop;
-        if (!stop || !block.calcs.some((c) => c.name === stop)) error(`${p}.flow`, 'A repeat-until step needs a stop check (a calculation of its block)');
+        const stopCalc = block.calcs.find((c) => c.name === (st.flow.stop ?? block.stop));
+        if (!stopCalc) error(`${p}.flow`, 'A repeat-until step needs a stop check (a calculation of its block)');
+        // An optional setting ("$name?") the stop check reads, left unset: it is left out at run time, so the check never
+        // passes and the rounds end only at the most allowed (port of Tablets round 37).
+        else for (const [, name] of JSON.stringify(stopCalc.args).matchAll(/"\$([a-zA-Z0-9]+)\?"/g)) {
+          const setting = block.settings.find((x) => x.name === name);
+          if (setting && st.settings[name!] === undefined) error(`${p}.flow`, `${stopCalc.label} stops the rounds, but ${setting.label} is not set, so it never passes: set it, or pick the check that stops the rounds under More options`);
+        }
       }
       if (st.everyMinutes && st.flow.kind !== 'repeat-until') error(`${p}.everyMinutes`, 'Checks every N minutes need a repeat-until step');
       const later = st.everyMinutesLater;
