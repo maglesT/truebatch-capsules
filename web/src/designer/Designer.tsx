@@ -22,7 +22,7 @@ const TABS: [Tab, string][] = product.packing ? [['header', 'Pack'], ['formula',
   : [['header', 'Header'], ['formula', 'Formula'], ['process', 'Process'], ['preview', 'Calculation preview'], ['review', 'Review and approval']];
 type Save = { kind: 'saved' | 'saving' | 'pending' } | { kind: 'invalid' | 'error'; message: string };
 
-const FIELD: Record<string, string> = { mgPerCapsule: 'mg per capsule', batchSize: 'batch size', fillWeightMg: 'fill weight', coatedWeightMg: 'coated weight', name: 'name', key: 'key', holdHours: 'hold time', count: 'number of sub-batches' };
+const FIELD: Record<string, string> = { mgPerCapsule: 'mg per capsule', batchSize: 'batch size', fillWeightMg: 'fill weight', coatedWeightMg: 'coated weight', shellType: 'shell type', shellSize: 'shell size', shellWeightMg: 'shell weight', name: 'name', key: 'key', holdHours: 'hold time', count: 'number of sub-batches' };
 function issueText(doc: MasterDoc, path: (string | number)[], message: string): string {
   const [a, i, b, j] = path;
   const where = a === 'formula' && typeof i === 'number' ? `Formula line ${i + 1} (${doc.formula[i]?.name || 'no material'})`

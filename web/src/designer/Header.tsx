@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError } from '../api.js';
 import { createMaster, getVersion, STATE_LABEL, type MasterData, type MasterRow } from '../api-designer.js';
-import { masterSchema, type MasterDoc } from '../../../shared/master/schema.js';
+import { isSoftGel, masterSchema, SHELL_TYPES, type MasterDoc } from '../../../shared/master/schema.js';
 import { batchWeight } from './example.js';
 import { dispensingRoomChoices, grouped, ownProducts, scaleDoc } from './model.js';
 import { packingStages, SKELETON_LIST, skeletonStages } from './skeletons.js';
@@ -18,6 +18,8 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
   const rooms = dispensingRoomChoices(md);
   const [picking, setPicking] = useState(!header.productItemId);
   const set = (k: keyof Header, v: string) => onChange({ ...header, [k]: v });
+  const soft = isSoftGel(header);
+  const shellLabel = soft ? 'Wet gel mass (mg per capsule)' : 'Mean empty shell weight (mg)';
   const core = batchWeight({ header } as MasterDoc, /^\d+(\.\d+)?$/.test(header.fillWeightMg) && /^[1-9]\d*$/.test(header.batchSize) ? header.fillWeightMg : undefined);
   return (
     <div className="header-fields">
@@ -43,8 +45,20 @@ export function HeaderFields({ header, onChange, md }: { header: Header; onChang
           <Decimal label="Theoretical coated weight (mg per capsule)" placeholder="uncoated" value={header.coatedWeightMg}
             onChange={(v) => onChange(v ? { ...header, coatedWeightMg: v } : (({ coatedWeightMg: _, ...h }) => h)(header))} />
         </label>
-        <label>Die bore area (mm², tooling record)<Decimal label="Die bore area" placeholder="not given" value={header.dieAreaMm2}
-          onChange={(v) => onChange(v ? { ...header, dieAreaMm2: v } : (({ dieAreaMm2: _, ...h }) => h)(header))} /></label>
+        {/* TC-01: the shell; TC-24: a US OTC two-piece hard capsule is sealed. */}
+        <label>Shell type
+          <select aria-label="Shell type" value={header.shellType ?? ''}
+            onChange={(e) => onChange(e.target.value ? { ...header, shellType: e.target.value as NonNullable<Header['shellType']> } : (({ shellType: _, ...h }) => h)(header))}>
+            <option value="">not chosen</option>
+            {SHELL_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </label>
+        {!soft && <label>Shell size<input aria-label="Shell size" placeholder="e.g. 0, 1, 00el" value={header.shellSize ?? ''} size={6}
+          onChange={(e) => onChange(e.target.value ? { ...header, shellSize: e.target.value } : (({ shellSize: _, ...h }) => h)(header))} /></label>}
+        <label>{shellLabel}<Decimal label={shellLabel} value={header.shellWeightMg}
+          onChange={(v) => onChange(v ? { ...header, shellWeightMg: v } : (({ shellWeightMg: _, ...h }) => h)(header))} /></label>
+        {!soft && <label className="check"><input type="checkbox" checked={!!header.usOtc}
+          onChange={(e) => onChange(e.target.checked ? { ...header, usOtc: true } : (({ usOtc: _, ...h }) => h)(header))} /> US OTC product (the capsules are sealed)</label>}
         <div className="calc-note">{core?.ok ? <>Theoretical fill batch weight: <b>{grouped(core.shown)}</b></> : <span className="muted">The fill batch weight shows once the batch size and fill weight are set.</span>}</div>
       </div>
       {/* TC-11: a balance is offered in these rooms or in a room the stage allows. */}
