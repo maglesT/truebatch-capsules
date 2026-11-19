@@ -123,6 +123,16 @@ answering) or **ok**.
   `fieldRefusal`); the step screen offers each field only its own results, and the server refuses another field's.
   Content uniformity is one test in LIMS: a result holding both stages' values (30) fills either stage it names. A
   result that names no field is matched by its unit as before; the same holds for a release CoA's result (`qc: true`).
+- **LIMS in-process tests: codes unique within the product** (port of Tablets round 45, agreed with LIMS: its
+  in-process specification is per product). Each test of `lab_request_v1.tests` has a `code`, unique within the master
+  (`ipcCodes`): '<block id>.<field name>' ('uniformity-by-weight.assay', 'blend-uniformity.results'), with '@<n>' when
+  the block is in the master more than once (n: its occurrence, stages and steps in order); a sub-batch or a round of
+  the step has the same code (the request id tells them apart). The master check shows an info line (not blocking) on
+  each step of such a block: "LIMS specification must map each occurrence". Content uniformity is ONE test: code
+  'content-uniformity', name 'results', `individual` 30, `stages` [10, 20]. LIMS names the code back at the end of
+  `result_v1` as `ipc_code` (read through to_jsonb): a result with it fills only the field of that code in this step,
+  refused otherwise; without it the round 44 rule holds (`ipc_field`, else the unit). `lab_request_v1` is replaced in
+  place (`db/migrations/0022`, same name and columns): every test has `code`, null for a request opened before.
 - **Published** (`db/migrations/0006_report_views.sql`): `batch_fact_v1` and `equipment_use_v1` with Batchwright's
   names and columns, so the Logbook and Deviations read TrueBatch as they read Batchwright, and `deviation_note_v1`
   for Deviations to file notes later. `batch_fact_v1` has one more column at its end (`0007`): `manufactured_on`, the

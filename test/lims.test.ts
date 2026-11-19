@@ -3,7 +3,8 @@ import { connect, type Sql } from '../server/db.js';
 import { links } from '../server/links.js';
 import { findBlock } from '../shared/blocks/index.js';
 import { blockProblems, type Block, type BlockField } from '../shared/blocks/format.js';
-import { answersField, coaRefusal, fieldRefusal, inProcessFit, inProcessText, labRequestId, labTests, requestFits, resultRefusal, type Coa, type QcResult } from '../shared/engine/lims.js';
+import { answersField, coaRefusal, fieldRefusal, inProcessFit, inProcessText, ipcCodes, labRequestId, labTests, requestFits, resultRefusal, type Coa, type QcResult } from '../shared/engine/lims.js';
+import { masterChecks } from '../shared/master/checks.js';
 import { Dec, roundHalfUp, t14ContentUniformity } from '../shared/templates/index.js';
 import { qcReportText } from '../shared/engine/release.js';
 import { batchRecordDoc } from '../server/batch-record.js';
@@ -362,7 +363,7 @@ describe('the in-process rules (shared/engine/lims.ts): this step\'s request, th
   });
 
   it('round 43: a field whose unit is not set is not asked for (none of Capsules\' in-process fields: their unit is fixed)', () => {
-    expect(labTests(cu.fields, () => '')).toEqual([]);
+    expect(labTests(cu.fields, () => '', {})).toEqual([]);
     for (const b of [cu, bu]) expect(b.fields.filter((f) => f.qc === 'in_process').every((f) => f.unit && !f.unit.startsWith('$'))).toBe(true);
   });
 
@@ -444,9 +445,8 @@ describe('the lab request a step opens (report.lab_request_v1)', () => {
     expect(await requests(b.batchNo)).toEqual([]);
     await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/start`, {});
     expect(await requests(b.batchNo)).toEqual([{ request_id: `${b.batchNo}/0.1.0.1`, batch_no: b.batchNo, product_code: 'P', stage_title: 'Stage 0', step_key: '0.1.0.1',
-      step_title: 'Content uniformity sampling', status: 'open', tests: [
-        { name: 'results', label: 'Content of 10 capsules (% of label claim)', unit: '%', individual: 10 },
-        { name: 'moreResults', label: 'Content of 20 more capsules (% of label claim)', unit: '%', individual: 20 }] }]);
+      step_title: 'Content uniformity sampling', status: 'open', tests: [{ code: 'content-uniformity', name: 'results',
+        label: 'Content of 10 capsules (% of label claim), then content of 20 more capsules (% of label claim)', unit: '%', individual: 30, stages: [10, 20] }] }]);
     const { resultId } = await inProcess(b.batchNo, `${b.batchNo}/0.1.0.1`, { values: L1_PASS, reported: av(L1_PASS), figure: 'AV' });
     expect((await recordAt(b.id, '0.1.0.1', { results: { lims: resultId } })).statusCode).toBe(200);
     // Round 43: done once its result is picked (a later round may pick it too), not when the step is signed.
@@ -840,7 +840,7 @@ describe('round 44: the uniformity-by-weight assay is an in-process test of the 
     const b = await issue([uniformity]);
     await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
     expect((await requests(b.batchNo)).map((r) => [r.request_id, r.status, r.tests])).toEqual([[`${b.batchNo}/${key}`, 'open',
-      [{ name: 'assay', label: 'Assay (% of label claim, QC report)', unit: '%', individual: null }]]]);
+      [{ code: 'uniformity-by-weight.assay', name: 'assay', label: 'Assay (% of label claim, QC report)', unit: '%', individual: null }]]]);
     await decided(b.batchNo, { results: [['Assay', '99.4', '%']] });
     const release = (await t.owner.unsafe(`select r.result_id::text as id from ${L}.result_v1 r join ${L}.coa_v1 c using (coa_id) where c.lot_number = $1`, [b.batchNo]))[0]!.id as string;
     expect((await ipPicks(b.id, key)).results).toEqual([]);
@@ -874,5 +874,153 @@ describe('round 44: the uniformity-by-weight assay is an in-process test of the 
     const s = await stepOf(b.id, key);
     expect(s.values.assay).toEqual({ value: '99.4', unit: '%' });
     expect(s.source.assay).toEqual({ from: 'hand', link: 'lims', state: 'no_request' });
+  });
+});
+
+// Round 45 (agreed with LIMS: its in-process specification is per PRODUCT): each test of a lab request has a code unique
+// within the master ('<block id>.<field name>', content uniformity 'content-uniformity', '@<n>' for a block in the
+// master more than once), and LIMS's result_v1 names it back (ipc_code): such a result fills only the field of that code.
+describe('round 45: in-process test codes unique within the product (lab_request_v1 tests[].code, result_v1.ipc_code)', () => {
+  const cu = findBlock({ id: 'content-uniformity', version: 1 })!;
+  const bu = findBlock({ id: 'blend-uniformity', version: 1 })!;
+  const ubw = findBlock({ id: 'uniformity-by-weight', version: 1 })!;
+  const [l1, l2] = [cu.fields.find((f) => f.name === 'results')!, cu.fields.find((f) => f.name === 'moreResults')!];
+  const loc = bu.fields.find((f) => f.name === 'results')!;
+  // Blend uniformity after pre-blend (stage 0) and after lubrication (stage 1), then content uniformity and the assay.
+  const doc = small([{ steps: [buStep, {}] }, { steps: [{}, buStep, cuStep(), uniformity] }]);
+  const codesAt = (stage: number, step: number) => ipcCodes(doc, stage, step, findBlock(doc.stages[stage]!.steps[step]!.block)!.fields);
+  const res = (o: Partial<QcResult>): QcResult => ({ resultId: 'r', coaId: 'c', coaNumber: 'IPR2600001', testName: 'Content uniformity', reported: null, unit: '%', limitText: null,
+    analysisNumber: null, outsideLab: null, requestId: 'TC260001/1.1.2.1', individual: null, figure: 'AV', ipcField: null, ipcCode: null, ...o });
+
+  it('TC-14 each in-process test has a code unique within the master; a repeated block adds @n by its order in the master', () => {
+    expect(codesAt(0, 0)).toEqual({ results: 'blend-uniformity.results@1' });
+    expect(codesAt(1, 1)).toEqual({ results: 'blend-uniformity.results@2' });
+    expect(codesAt(1, 2)).toEqual({ results: 'content-uniformity', moreResults: 'content-uniformity' });
+    expect(codesAt(1, 3)).toEqual({ assay: 'uniformity-by-weight.assay' });
+    expect(codesAt(0, 1)).toEqual({});
+    const all = doc.stages.flatMap((s, si) => s.steps.flatMap((_, ti) => [...new Set(Object.values(codesAt(si, ti)))]));
+    expect(all).toHaveLength(4);
+    expect(new Set(all).size).toBe(all.length);
+    // Not repeated: no @n.
+    const once = small([{ steps: [buStep] }]);
+    expect(ipcCodes(once, 0, 0, bu.fields)).toEqual({ results: 'blend-uniformity.results' });
+  });
+
+  it('TC-14 content uniformity is ONE test of the request: name results, 30 values in stages of 10 and 20', () => {
+    expect(labTests(cu.fields, (f) => f.unit ?? '', codesAt(1, 2))).toEqual([{ code: 'content-uniformity', name: 'results',
+      label: 'Content of 10 capsules (% of label claim), then content of 20 more capsules (% of label claim)', unit: '%', individual: 30, stages: [10, 20] }]);
+    expect(labTests(bu.fields, (f) => f.unit ?? '', codesAt(1, 1))).toEqual([{ code: 'blend-uniformity.results@2', name: 'results', label: loc.label, unit: '%', individual: 10 }]);
+  });
+
+  it('TC-14 the master check says a repeated in-process block must be mapped in LIMS for each occurrence (info, not blocking)', () => {
+    const info = masterChecks(doc).filter((p) => p.level === 'info');
+    expect(info.map((p) => [p.path, p.message])).toEqual([
+      ['stages[0].steps[0]', 'Blend uniformity sampling is in this master 2 times: this step\'s in-process test is blend-uniformity.results@1. LIMS specification must map each occurrence'],
+      ['stages[1].steps[1]', 'Blend uniformity sampling is in this master 2 times: this step\'s in-process test is blend-uniformity.results@2. LIMS specification must map each occurrence'],
+    ]);
+    expect(masterChecks(small([{ steps: [buStep, cuStep()] }])).filter((p) => p.level === 'info')).toEqual([]);
+  });
+
+  it('TC-14 a result that names its test\'s code (ipc_code) fills only the field of that code; another code is refused', () => {
+    const at2 = codesAt(1, 1);
+    const BU = L1_PASS;
+    expect(answersField(res({ ipcCode: 'blend-uniformity.results@2', individual: BU }), loc, bu.fields, at2)).toBe(true);
+    expect(answersField(res({ ipcCode: 'blend-uniformity.results@1', individual: BU }), loc, bu.fields, at2)).toBe(false);
+    // The code wins over ipc_field: a result of the first occurrence is refused in the second even when it names the field.
+    expect(inProcessFit(res({ testName: 'Blend uniformity', ipcCode: 'blend-uniformity.results@1', ipcField: 'results', individual: BU, figure: 'mean', reported: mean(BU) }), loc, '%', bu.fields, {}, undefined, at2))
+      .toEqual({ error: 'Blend uniformity of report IPR2600001 answers in-process test blend-uniformity.results@1, not Content at 10 locations (% of label claim).' });
+    expect(inProcessFit(res({ ipcCode: 'blend-uniformity.results@2', individual: BU, figure: 'mean', reported: mean(BU) }), loc, '%', bu.fields, {}, undefined, at2)).toEqual({ take: { results: BU } });
+    // Two tests in one unit: the assay's code never fills content uniformity.
+    expect(answersField(res({ ipcCode: 'uniformity-by-weight.assay', individual: L1_PASS }), l1, cu.fields, codesAt(1, 2))).toBe(false);
+  });
+
+  it('TC-14 content uniformity by its one code: 30 values fill L1 and L2, 10 values fill L1 (not L2 alone)', () => {
+    const codes = codesAt(1, 2);
+    const all = [...L1_FAIL, ...MORE];
+    const r30 = res({ ipcCode: 'content-uniformity', individual: all, reported: av(all) });
+    const r10 = res({ ipcCode: 'content-uniformity', individual: L1_PASS, reported: av(L1_PASS) });
+    expect(answersField(r30, l1, cu.fields, codes) && answersField(r30, l2, cu.fields, codes)).toBe(true);
+    expect(inProcessFit(r30, l1, '%', cu.fields, {}, 'uncoated', codes)).toEqual({ take: { results: L1_FAIL, moreResults: MORE } });
+    expect(inProcessFit(r10, l1, '%', cu.fields, {}, 'uncoated', codes)).toEqual({ take: { results: L1_PASS } });
+    expect(inProcessFit(r10, l2, '%', cu.fields, {}, 'uncoated', codes)).toMatchObject({ error: expect.stringContaining('has 10 values in LIMS; Content of 20 more capsules') });
+  });
+
+  it('TC-14 a result without ipc_code (an older LIMS) keeps the round 44 rule: ipc_field, else the unit', () => {
+    const codes = codesAt(1, 2);
+    expect(answersField(res({ ipcField: 'moreResults', individual: L1_PASS }), l1, cu.fields, codes)).toBe(false);
+    expect(answersField(res({ ipcField: 'results', individual: L1_PASS }), l1, cu.fields, codes)).toBe(true);
+    expect(answersField(res({ individual: L1_PASS }), l2, cu.fields, codes)).toBe(true);
+    expect(answersField(res({ ipcCode: '', ipcField: 'results', individual: [...L1_FAIL, ...MORE] }), l2, cu.fields, codes)).toBe(true);
+  });
+
+  describe('on the server', () => {
+    const code = (resultId: string, c: string | null) => t.owner.unsafe(`update ${L}.result_v1 set ipc_code = $1 where result_id = $2`, [c, resultId]);
+    const BU = ['98.0', '101.0', '99.5', '100.5', '97.5', '102.0', '99.0', '100.0', '101.5', '98.5'];
+    // LIMS appends ipc_code at the end of result_v1 (every test above reads a LIMS without it).
+    beforeAll(async () => {
+      t.master.equipment_.push({ itemId: 'eq-bl45', code: 'BL-45', name: 'Blender', version: 1, active: true, kind: 'equipment', type: 'bin blender', room: 'DSP-01' });
+      await t.owner.unsafe(`alter table ${L}.result_v1 add column ipc_code text`);
+    });
+
+    /** A batch with blend uniformity twice: the first started (its request open) and set not applicable, so the second may start. */
+    async function twice() {
+      const b = await issue([{ ...buStep, flow: { kind: 'optional-with-reason' } }, buStep]);
+      await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/start`, {});
+      const s = (await stepOf(b.id, '0.1.0.1')) as StepJson & { contentHash: string };
+      const na = await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/not-applicable`, { proof: proofFor('asha'), contentHash: s.contentHash, reason: 'Pre-blend sample not needed' });
+      expect(na.statusCode, na.body).toBe(200);
+      return b;
+    }
+
+    it('TC-14 lab_request_v1 publishes each test\'s code: blend uniformity twice in the master is @1 and @2', async () => {
+      const b = await twice();
+      await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.1.1/start`, {});
+      expect((await requests(b.batchNo)).map((r) => [r.request_id, (r.tests as { code: string }[]).map((x) => x.code)])).toEqual([
+        [`${b.batchNo}/0.1.0.1`, ['blend-uniformity.results@1']], [`${b.batchNo}/0.1.1.1`, ['blend-uniformity.results@2']]]);
+    });
+
+    it('TC-14 a request opened before round 45 publishes code null for its tests (LIMS matches it by name)', async () => {
+      const b = await issue([buStep]);
+      await t.owner`insert into step_events (batch_id, stage, sub, step, round, kind, payload, person_id) values (${b.id}, 0, 1, 0, 1, 'started',
+        ${t.owner.json({ labRequest: { stage: 'Stage 0', step: 'Blend uniformity sampling', tests: [{ name: 'results', label: 'L', unit: '%', individual: 10 }] } })}, (select id from users where username = 'asha'))`;
+      expect((await requests(b.batchNo)).map((r) => r.tests)).toEqual([[{ code: null, name: 'results', label: 'L', unit: '%', individual: 10 }]]);
+    });
+
+    it('TC-14 a result naming another test\'s code is refused; one naming this step\'s code is picked; without ipc_code, ipc_field decides', async () => {
+      const b = await twice();
+      const key = '0.1.1.1';
+      const req = `${b.batchNo}/${key}`;
+      await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
+      const r = await inProcess(b.batchNo, req, { values: BU, reported: mean(BU), figure: 'mean', test: 'Blend uniformity' });
+      const p = (await (await as('asha', 'GET', `/api/batches/${b.id}/lims?request=${key}&units=${encodeURIComponent(encodeURIComponent('%'))}`)).json()) as { results: { resultId: string; ipcCode: string | null }[] };
+      expect(p.results.map((x) => [x.resultId, x.ipcCode])).toEqual([[r.resultId, null]]);
+      const field = (f: string | null) => t.owner.unsafe(`update ${L}.result_v1 set ipc_field = $1 where result_id = $2`, [f, r.resultId]);
+      // ipc_code names the first occurrence (stage 0's step): refused here, even though ipc_field names this field.
+      await code(r.resultId, 'blend-uniformity.results@1');
+      await field('results');
+      expect(await problems(recordAt(b.id, key, { results: { lims: r.resultId } })))
+        .toEqual([`Blend uniformity of report ${r.number} answers in-process test blend-uniformity.results@1, not Content at 10 locations (% of label claim).`]);
+      // Without ipc_code the round 44 rule: ipc_field naming another field is refused.
+      await code(r.resultId, null);
+      await field('other');
+      expect(await problems(recordAt(b.id, key, { results: { lims: r.resultId } }))).toEqual([`Blend uniformity of report ${r.number} answers other, not Content at 10 locations (% of label claim).`]);
+      // This step's code is picked (the code decides, not ipc_field).
+      await code(r.resultId, 'blend-uniformity.results@2');
+      expect((await recordAt(b.id, key, { results: { lims: r.resultId } })).statusCode).toBe(200);
+      expect((await stepOf(b.id, key)).values.results).toEqual(BU.map((value) => ({ value, unit: '%' })));
+    });
+
+    it('TC-14 content uniformity by its code: the 30-value result fills L1 and L2 in one pick', async () => {
+      const b = await issue([cuStep()]);
+      const key = '0.1.0.1';
+      await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
+      const all = [...L1_FAIL, ...MORE];
+      const r = await inProcess(b.batchNo, `${b.batchNo}/${key}`, { values: all, reported: av(all), figure: 'AV', test: 'Content uniformity' });
+      await code(r.resultId, 'content-uniformity');
+      expect((await recordAt(b.id, key, { results: { lims: r.resultId } })).statusCode).toBe(200);
+      const s = await stepOf(b.id, key);
+      expect(s.values.results).toEqual(L1_FAIL.map((value) => ({ value, unit: '%' })));
+      expect(s.values.moreResults).toEqual(MORE.map((value) => ({ value, unit: '%' })));
+    });
   });
 });
