@@ -70,7 +70,8 @@ answering) or **ok**.
   marked not applicable, a QA hold release and the batch-level signatures do not read training.
 - **LIMS** (`coa_v1`, `result_v1`, readers round 2, 19 Nov 2026): QC's certificate of analysis (CoA) and its results,
   read through `LIMS_DATABASE_URL` (`shared/engine/lims.ts`, `server/pull.ts`). While the link answers they are
-  PICKED, never typed: (1) a QC result field of a step (`qc` on a number field: the uniformity-by-weight assay) takes
+  PICKED, never typed: (1) a QC result field of a step (`qc` on a number field; round 44: no Capsules block has one now,
+  the uniformity-by-weight assay is in-process, below; the rule stays for the editions that use it) takes
   the `reported` figure of a result of this batch's approved CoA in the field's unit, and keeps "LIMS CoA … as
   reported" as its source; (2) QC approval of the batch (or packing batch) takes the CoA number of this batch's
   approved CoA, kept in the approval's payload (`source`) and signed with it; (3) the "QC report or certificate number"
@@ -110,7 +111,18 @@ answering) or **ok**.
   started before LIMS in-process requests" (`no_request`), checked by a second person and listed for QA. Marked in
   Capsules: blend uniformity (the 10 location results, figure mean) and content uniformity (the 10 and the 20 more,
   figure AV). Not marked (shop-floor IPC): fill weights, closed length, disintegration, LOD, density and flow, sieve
-  analysis, soft gel shell water. The uniformity-by-weight assay stays the batch's release assay (`qc: true`).
+  analysis, soft gel shell water. Round 44 (found on the demo, TC260003): the uniformity-by-weight assay is in-process
+  too (`qc: 'in_process'`, a single number: LIMS's figure 'result'), no longer the batch's release CoA: the step comes
+  mid-production (after filling), so the operator must not wait for full release testing. Its lab request asks QC for
+  the assay of a composite sample of the capsules (USP <905> weight variation); T14 works out the acceptance value from
+  it and the net fills. A uniformity-by-weight step started before has no lab request for it: its assay is typed
+  ("started before LIMS in-process requests").
+- **LIMS in-process tests: the field a result answers** (round 44). LIMS's in-process specification names, per test,
+  the TrueBatch field it answers (`tests[].name`), published at the end of `result_v1` as `ipc_field` (read through
+  to_jsonb: an older LIMS gives null). A result that names a field fills only that field (`answersField`,
+  `fieldRefusal`); the step screen offers each field only its own results, and the server refuses another field's.
+  Content uniformity is one test in LIMS: a result holding both stages' values (30) fills either stage it names. A
+  result that names no field is matched by its unit as before; the same holds for a release CoA's result (`qc: true`).
 - **Published** (`db/migrations/0006_report_views.sql`): `batch_fact_v1` and `equipment_use_v1` with Batchwright's
   names and columns, so the Logbook and Deviations read TrueBatch as they read Batchwright, and `deviation_note_v1`
   for Deviations to file notes later. `batch_fact_v1` has one more column at its end (`0007`): `manufactured_on`, the
