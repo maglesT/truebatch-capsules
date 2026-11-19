@@ -3,7 +3,8 @@ import { connect, type Sql } from '../server/db.js';
 import { links } from '../server/links.js';
 import { findBlock } from '../shared/blocks/index.js';
 import { blockProblems, type Block } from '../shared/blocks/format.js';
-import { coaRefusal, resultRefusal, type Coa, type QcResult } from '../shared/engine/lims.js';
+import { coaRefusal, inProcessFit, inProcessText, labRequestId, labTests, requestFits, resultRefusal, type Coa, type QcResult } from '../shared/engine/lims.js';
+import { Dec, roundHalfUp, t14ContentUniformity } from '../shared/templates/index.js';
 import { qcReportText } from '../shared/engine/release.js';
 import { batchRecordDoc } from '../server/batch-record.js';
 import { loadBatch, recordInput } from '../server/routes/batches.js';
@@ -52,6 +53,14 @@ describe('the LIMS rules (shared/engine/lims.ts): only an approved CoA of this b
     expect(resultRefusal(r({ reported: null }), '%')).toBe('Assay of CoA COA26001 has no reported figure in LIMS.');
     expect(resultRefusal(r({ reported: 'complies' }), '%')).toBe('Assay of CoA COA26001 has no reported figure in LIMS.');
     expect(resultRefusal(r({ unit: 'mg' }), '%')).toBe('Assay of CoA COA26001 is in mg, not in %.');
+    // round 41: the same unit written two ways matches; a different unit still does not
+    expect(resultRefusal(r({ unit: null, testName: 'pH' }), 'pH')).toBeNull();
+    expect(resultRefusal(r({ unit: 'pH', testName: 'pH' }), 'pH')).toBeNull();
+    expect(resultRefusal(r({ unit: 'mPa.s', testName: 'Viscosity' }), 'mPa·s')).toBeNull();
+    expect(resultRefusal(r({ unit: 'g/ml', testName: 'Density' }), 'g/mL')).toBeNull();
+    expect(resultRefusal(r({ unit: '% w/w' }), '%w/w')).toBeNull();
+    expect(resultRefusal(r({ unit: '%w/v' }), '%w/w')).toBe('Assay of CoA COA26001 is in %w/v, not in %w/w.');
+    expect(resultRefusal(r({ unit: null }), '%')).toBe('Assay of CoA COA26001 is in no unit, not in %.');
   });
 
   it('a QC result field is a single number (the block check)', () => {
@@ -82,10 +91,11 @@ beforeAll(async () => {
       create schema ${L};
       create table ${L}.coa_v1 (coa_id uuid, coa_number text, sample_number text, lot_number text, item_kind text, item_master_id text, item_code text,
         item_name text, purpose text, decision text, decided_at timestamptz, decided_by text, spec_number text, spec_version int, reason text,
-        read_at timestamptz default now(), data_as_of timestamptz default now());
+        read_at timestamptz default now(), data_as_of timestamptz default now(), request_id text);
       create table ${L}.result_v1 (result_id uuid, coa_id uuid, coa_number text, sample_number text, lot_number text, item_master_id text, item_code text,
         test_key text, test_name text, value numeric, unit text, shown text, limit_text text, passed boolean, method_code text, analysis_number text,
-        decision text, decided_at timestamptz, read_at timestamptz default now(), data_as_of timestamptz default now(), reported text, outside_lab text);
+        decision text, decided_at timestamptz, read_at timestamptz default now(), data_as_of timestamptz default now(), reported text, outside_lab text,
+        request_id text, individual_values numeric[], figure text);
       grant usage on schema ${L} to truebatch_capsules_app;
       grant select on all tables in schema ${L} to truebatch_capsules_app;`);
     provider = connect(TEST_DATABASE_URL, { role: 'truebatch_capsules_app', link: true });
@@ -163,6 +173,12 @@ describe('a QC result of the batch, picked from LIMS', () => {
     expect(p.link).toBe('ok');
     expect(p.results.map((r) => [r.coaNumber, r.testName, r.reported])).toEqual([[good, 'Assay', '99.4']]);
     expect(p.results[0]!.shown).toBe(`LIMS CoA ${good}: Assay 99.4 % as reported (limit 95.0 - 105.0), analysis LA26001`);
+  });
+
+  it('TC-14 round 41: one read gives the results for every QC field of a step, each in its own unit', async () => {
+    const both = await picks(b.id, `?units=${encodeURIComponent(encodeURIComponent('%'))},${encodeURIComponent(encodeURIComponent('mg'))}`);
+    expect(both.results.map((r) => [r.testName, r.reported]).sort()).toEqual([['Assay', '99.4'], ['Average weight', '250.1']]);
+    expect((await picks(b.id, `?units=${encodeURIComponent(encodeURIComponent('mg'))}`)).results.map((r) => r.testName)).toEqual(['Average weight']);
   });
 
   it('TC-14 while LIMS answers the assay is picked (its reported figure, kept with the CoA number); typing it is refused', async () => {
@@ -283,5 +299,413 @@ describe('the QC report of a lot typed by hand, picked from LIMS', () => {
     const s = await stepOf(b.id, '0.1.0.1');
     expect(s.values['lot.report']).toBe('SUP-123');
     expect(s.source['lot.report']).toEqual({ from: 'hand', link: 'lims', state: 'down' });
+  });
+});
+
+// ---- Round 42: in-process lab tests picked from LIMS (the step's own lab request, lab_request_v1).
+
+const L1_PASS = ['99.0', '100.0', '101.0', '98.5', '100.5', '99.5', '100.2', '99.8', '100.1', '99.9'];
+const L1_FAIL = ['85.0', '115.0', '88.0', '112.0', '90.0', '110.0', '92.0', '108.0', '95.0', '105.0'];
+const MORE = ['99.0', '101.0', '100.0', '99.5', '100.5', '98.0', '102.0', '99.0', '101.0', '100.0', '99.8', '100.2', '99.6', '100.4', '98.8', '101.2', '99.9', '100.1', '99.7', '100.3'];
+const av = (values: string[]) => { const t = t14ContentUniformity({ method: 'content uniformity', coating: 'hard capsule', results: { values, unit: '%' } }); if (!t.ok) throw new Error(t.message); return t.value.toFixed(1); };
+const mean = (values: string[]) => roundHalfUp(values.reduce((a, v) => a.plus(v), new Dec(0)).div(values.length), 1).toFixed(1);
+
+describe('the in-process rules (shared/engine/lims.ts): this step\'s request, the values as LIMS keeps them', () => {
+  const req = 'TC260001/0.1.0.1';
+  const want = { ...batch, request: req };
+  const ipr = (o: Partial<Coa> = {}) => coa({ coaNumber: 'IPR2600001', purpose: 'in_process', requestId: req, ...o });
+  const cu = findBlock({ id: 'content-uniformity', version: 1 })!;
+  const bu = findBlock({ id: 'blend-uniformity', version: 1 })!;
+  const results = cu.fields.find((f) => f.name === 'results')!;
+  const more = cu.fields.find((f) => f.name === 'moreResults')!;
+  const r = (individual: string[] | null, o: Partial<QcResult> = {}): QcResult => ({ resultId: 'r', coaId: 'c', coaNumber: 'IPR2600001', testName: 'Content uniformity', reported: individual?.length === 10 || individual?.length === 30 ? av(individual) : '99.0',
+    unit: '%', limitText: null, analysisNumber: 'LA26009', outsideLab: null, requestId: req, individual, figure: 'AV', ...o });
+
+  it('TC-14 an approved in-process report of this step\'s request may be used; another request, a release CoA or an unapproved report not', () => {
+    expect(coaRefusal(ipr(), want)).toBeNull();
+    expect(coaRefusal(ipr({ requestId: 'TC260001/0.1.1.1' }), want)).toBe(`In-process report IPR2600001 is for request TC260001/0.1.1.1, not request ${req} (this step) or an earlier round of it.`);
+    expect(coaRefusal(ipr({ purpose: 'release', requestId: null }), want)).toBe(`CoA IPR2600001 is of a release sample: only an in-process report of request ${req} (this step) may be used.`);
+    expect(coaRefusal(ipr({ decision: 'REJECTED' }), want)).toMatch(/not approved in LIMS/);
+    expect(coaRefusal(ipr({ lotNumber: 'TC260002' }), want)).toBe('CoA IPR2600001 is for batch TC260002, not batch TC260001.');
+    // ... and an in-process report is never the batch's release CoA.
+    expect(coaRefusal(ipr(), batch)).toBe('CoA IPR2600001 is of an in-process sample: only the release CoA of batch TC260001 may be used.');
+    expect(labRequestId('TC260001', '0.1.0.1')).toBe(req);
+  });
+
+  it('round 43: a step takes its own request or an EARLIER round of the same step, never a later round, another step or batch', () => {
+    expect(requestFits('TC260001/0.1.0.1', 'TC260001/0.1.0.1')).toBe(true);
+    expect(requestFits('tc260001/0.1.0.1', 'TC260001/0.1.0.5')).toBe(true);
+    expect(requestFits('TC260001/0.1.0.6', 'TC260001/0.1.0.5')).toBe(false);
+    expect(requestFits('TC260001/0.1.1.1', 'TC260001/0.1.0.5')).toBe(false);
+    expect(requestFits('TC260001/0.2.0.1', 'TC260001/0.1.0.5')).toBe(false);
+    expect(requestFits('TC260002/0.1.0.1', 'TC260001/0.1.0.5')).toBe(false);
+    expect(requestFits(null, req)).toBe(false);
+    const w3 = { ...batch, request: 'TC260001/0.1.0.3' };
+    expect(coaRefusal(ipr(), w3)).toBeNull();
+    expect(coaRefusal(ipr({ requestId: 'TC260001/0.1.0.4' }), w3)).toBe('In-process report IPR2600001 is for request TC260001/0.1.0.4, not request TC260001/0.1.0.3 (this step) or an earlier round of it.');
+  });
+
+  it('round 43: the record says which round\'s sample was used and when it was sampled (a step without rounds: when its request opened)', () => {
+    const x = r(L1_PASS);
+    expect(inProcessText(x, req, { round: 1, at: '2026-11-19T05:10:00.000Z' })).toBe(`LIMS in-process report IPR2600001: Content uniformity (request ${req}, sampled in round 1 at 2026-11-19T05:10:00.000Z), 10 values, acceptance value ${av(L1_PASS)} % as reported, analysis LA26009`);
+    expect(inProcessText(x, req, { at: '2026-11-19T05:10:00.000Z' })).toContain(`(request ${req}, requested 2026-11-19T05:10:00.000Z), 10 values`);
+    expect(inProcessText(x, req)).toContain(`(request ${req}), 10 values`);
+  });
+
+  it('round 43: a field whose unit is not set is not asked for (none of Capsules\' in-process fields: their unit is fixed)', () => {
+    expect(labTests(cu.fields, () => '')).toEqual([]);
+    for (const b of [cu, bu]) expect(b.fields.filter((f) => f.qc === 'in_process').every((f) => f.unit && !f.unit.startsWith('$'))).toBe(true);
+  });
+
+  it('TC-14 a list takes exactly its count of LIMS\'s values in order: 9 or 11 are refused, never padded or cut', () => {
+    expect(inProcessFit(r(L1_PASS), results, '%', cu.fields)).toEqual({ take: { results: L1_PASS } });
+    expect(inProcessFit(r(L1_PASS.slice(0, 9), { figure: null }), results, '%', cu.fields)).toEqual({ error: 'Content uniformity of in-process report IPR2600001 has 9 values in LIMS; Content of 10 capsules (% of label claim) takes exactly 10 (or 30 with content of 20 more capsules (% of label claim)). Values are never added or left out: ask QC to check the result in LIMS.' });
+    expect(inProcessFit(r([...L1_PASS, '99.0'], { figure: null }), results, '%', cu.fields)).toMatchObject({ error: expect.stringContaining('has 11 values in LIMS') });
+    expect(inProcessFit(r(null, { figure: 'result' }), results, '%', cu.fields)).toMatchObject({ error: expect.stringContaining('has no individual values in LIMS') });
+    expect(inProcessFit(r(L1_PASS, { unit: 'mg' }), results, '%', cu.fields)).toEqual({ error: 'Content uniformity of in-process report IPR2600001 is in mg, not in %.' });
+    expect(inProcessFit(r(L1_PASS, { figure: 'mean' }), results, '%', cu.fields)).toMatchObject({ error: expect.stringContaining('reports the mean, not the acceptance value') });
+  });
+
+  it('TC-14 LIMS\'s reported figure must agree with the step\'s own from the same values; else both numbers are named', () => {
+    expect(inProcessFit(r(L1_PASS, { reported: '9.9' }), results, '%', cu.fields)).toEqual({ error: `LIMS reports the acceptance value of Content uniformity of in-process report IPR2600001 as 9.9; TrueBatch works it out from the same 10 values as ${av(L1_PASS)}: ask QC to check the result in LIMS.` });
+    const loc = bu.fields.find((f) => f.name === 'results')!;
+    expect(inProcessFit(r(L1_PASS, { figure: 'mean', reported: mean(L1_PASS) }), loc, '%', bu.fields)).toEqual({ take: { results: L1_PASS } });
+    expect(inProcessFit(r(L1_PASS, { figure: 'mean', reported: '101.0' }), loc, '%', bu.fields)).toMatchObject({ error: expect.stringContaining(`as 101.0; TrueBatch works it out from the same 10 values as ${mean(L1_PASS)}`) });
+  });
+
+  it('TC-14 content uniformity in two stages: 30 values give L1 and L2; the 20 more are values 11 to 30, refused when the first 10 differ', () => {
+    const all = [...L1_FAIL, ...MORE];
+    expect(inProcessFit(r(all), results, '%', cu.fields)).toEqual({ take: { results: L1_FAIL, moreResults: MORE } });
+    const had = { results: L1_FAIL.map((value) => ({ value, unit: '%' })) };
+    expect(inProcessFit(r(all), more, '%', cu.fields, had)).toEqual({ take: { moreResults: MORE } });
+    // The same figures written another way are the same values.
+    expect(inProcessFit(r(all), more, '%', cu.fields, { results: L1_FAIL.map((v) => ({ value: `${v}0`, unit: '%' })) })).toEqual({ take: { moreResults: MORE } });
+    const other = [...L1_PASS, ...MORE];
+    expect(inProcessFit(r(other), more, '%', cu.fields, had)).toEqual({ error: `The first 10 values of Content uniformity of in-process report IPR2600001 (${L1_PASS.join(', ')}) are not the 10 recorded for content of 10 capsules (% of label claim) (${L1_FAIL.join(', ')}): ask QC to check the result in LIMS.` });
+    // A separate result of the 20 more: LIMS's AV is of all 30 (L1's recorded 10 and these 20).
+    expect(inProcessFit(r(MORE, { reported: av(all) }), more, '%', cu.fields, had)).toEqual({ take: { moreResults: MORE } });
+    expect(inProcessFit(r(MORE, { reported: av(all) }), more, '%', cu.fields)).toMatchObject({ error: expect.stringMatching(/^Pick content of 10 capsules .* first/) });
+  });
+
+  it('the blocks: blend and content uniformity are in-process lab tests; a staged list names another in-process list', () => {
+    expect(bu.fields.find((f) => f.name === 'results')).toMatchObject({ qc: 'in_process', count: 10, figure: 'mean' });
+    expect(cu.fields.filter((f) => f.qc === 'in_process').map((f) => [f.name, f.count])).toEqual([['results', 10], ['moreResults', 20]]);
+    for (const b of [bu, cu]) expect(blockProblems(b)).toEqual([]);
+    const bad: Block = { ...cu, fields: cu.fields.map((f) => (f.name === 'moreResults' ? { ...f, qc: undefined } : f)) };
+    expect(blockProblems(bad)).toContain('field results: the next stage is another in-process list of readings');
+    // Shop-floor IPC stays typed at the machine.
+    for (const id of ['capsule-fill', 'softgel-encapsulate', 'disintegration', 'dry']) expect(findBlock({ id, version: 1 })!.fields.some((f) => f.qc)).toBe(false);
+  });
+});
+
+/** An approved (or other) in-process report of a lab request with one result: its individual values, figure and reported figure. */
+async function inProcess(lotNo: string, request: string | null, o: { values?: string[] | null; reported?: string | null; figure?: string | null; unit?: string; purpose?: string; decision?: string; test?: string } = {}) {
+  n += 1;
+  const number = `IPR26${String(n).padStart(5, '0')}`;
+  const id = `00000000-0000-0000-0000-${String(n).padStart(12, '0')}`;
+  const decision = o.decision ?? 'APPROVED';
+  await t.owner.unsafe(`insert into ${L}.coa_v1 (coa_id, coa_number, sample_number, lot_number, item_kind, item_master_id, item_code, item_name, purpose, decision, decided_at, decided_by, request_id)
+    values ($1, $2, $3, $4, 'PRODUCT', 'p', 'P', 'P', $5, $6, now(), 'QC ONE', $7)`, [id, decision === 'APPROVED' ? number : null, `LS26${n}`, lotNo, o.purpose ?? 'in_process', decision, request]);
+  const rid = `00000000-0000-0000-9999-${String(n).padStart(12, '0')}`;
+  await t.owner.unsafe(`insert into ${L}.result_v1 (result_id, coa_id, coa_number, lot_number, test_key, test_name, unit, analysis_number, decision, decided_at, reported, request_id, individual_values, figure)
+    values ($1, $2, $3, $4, 'cu', $5, $6, 'LA26009', $7, now(), $8, $9, $10::numeric[], $11)`,
+  [rid, id, decision === 'APPROVED' ? number : null, lotNo, o.test ?? 'Uniformity', o.unit ?? '%', decision, o.reported ?? null, request, o.values ? `{${o.values.join(',')}}` : null, o.figure ?? null]);
+  return { number, resultId: rid };
+}
+type IpPicks = { link: string; request: string; results: { resultId: string; coaNumber: string; individual: string[] | null; figure: string | null; shown: string }[] };
+const ipPicks = async (id: number, key: string) => (await as('asha', 'GET', `/api/batches/${id}/lims?request=${key}&units=${encodeURIComponent(encodeURIComponent('%'))}`)).json() as IpPicks;
+const recordAt = (id: number, key: string, values: object) => as('asha', 'POST', `/api/batches/${id}/steps/${key}/record`, { values });
+type Row = { request_id: string; batch_no: string; product_code: string; stage_title: string; step_key: string; step_title: string; tests: object[]; status: string };
+const requests = async (batchNo: string) => (await t.owner.unsafe(`select request_id, batch_no, product_code, stage_title, step_key, step_title, tests, status
+  from ${t.schema}_report.lab_request_v1 where batch_no = $1 order by request_id`, [batchNo])) as unknown as Row[];
+const cuStep = (o: object = {}) => ({ block: { id: 'content-uniformity', version: 1 }, checker: true, settings: { coating: 'hard capsule' }, ...o });
+const buStep = { block: { id: 'blend-uniformity', version: 1 }, checker: true,
+  settings: { meanLimit: { low: '90.0', high: '110.0', unit: '%' }, rsdLimit: { high: '5.0', unit: '%' }, individualLimit: { low: '75.0', high: '125.0', unit: '%' } } };
+
+describe('the lab request a step opens (report.lab_request_v1)', () => {
+  it('TC-14 lab_request_v1 has the columns agreed with LIMS (the same in every TrueBatch edition)', async () => {
+    const cols = await t.owner<{ c: string }[]>`select column_name || ' ' || data_type as c from information_schema.columns
+      where table_schema = ${`${t.schema}_report`} and table_name = 'lab_request_v1' order by ordinal_position`;
+    expect(cols.map((r) => r.c)).toEqual(['request_id text', 'batch_no text', 'product_code text', 'stage_title text', 'step_key text', 'step_title text', 'tests jsonb',
+      'requested_at timestamp with time zone', 'status text', 'read_at timestamp with time zone', 'data_as_of timestamp with time zone']);
+  });
+
+  it('TC-14 a step with in-process tests opens its request when it starts; it is done once its result is picked', async () => {
+    const b = await issue([cuStep(), {}]);
+    expect(await requests(b.batchNo)).toEqual([]);
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/start`, {});
+    expect(await requests(b.batchNo)).toEqual([{ request_id: `${b.batchNo}/0.1.0.1`, batch_no: b.batchNo, product_code: 'P', stage_title: 'Stage 0', step_key: '0.1.0.1',
+      step_title: 'Content uniformity sampling', status: 'open', tests: [
+        { name: 'results', label: 'Content of 10 capsules (% of label claim)', unit: '%', individual: 10 },
+        { name: 'moreResults', label: 'Content of 20 more capsules (% of label claim)', unit: '%', individual: 20 }] }]);
+    const { resultId } = await inProcess(b.batchNo, `${b.batchNo}/0.1.0.1`, { values: L1_PASS, reported: av(L1_PASS), figure: 'AV' });
+    expect((await recordAt(b.id, '0.1.0.1', { results: { lims: resultId } })).statusCode).toBe(200);
+    // Round 43: done once its result is picked (a later round may pick it too), not when the step is signed.
+    expect((await requests(b.batchNo)).map((r) => r.status)).toEqual(['done']);
+    const s = (await stepOf(b.id, '0.1.0.1')) as StepJson & { contentHash: string };
+    const done = await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/done`, { proof: proofFor('asha'), contentHash: s.contentHash });
+    expect(done.statusCode, done.body).toBe(200);
+    expect((await requests(b.batchNo)).map((r) => r.status)).toEqual(['done']);
+    // The next step (no in-process test) opens none.
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.1.1/start`, {});
+    expect((await requests(b.batchNo)).map((r) => r.request_id)).toEqual([`${b.batchNo}/0.1.0.1`]);
+  });
+
+  it('TC-14 a request is cancelled when its step is set not applicable, or the batch is terminated, before it was signed', async () => {
+    const b = await issue([cuStep({ flow: { kind: 'optional-with-reason' } }), buStep]);
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/start`, {});
+    const s = (await stepOf(b.id, '0.1.0.1')) as StepJson & { contentHash: string };
+    const na = await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/not-applicable`, { proof: proofFor('asha'), contentHash: s.contentHash, reason: 'Not needed for this batch size' });
+    expect(na.statusCode, na.body).toBe(200);
+    expect((await requests(b.batchNo)).map((r) => [r.request_id, r.status])).toEqual([[`${b.batchNo}/0.1.0.1`, 'cancelled']]);
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.1.1/start`, {});
+    expect((await requests(b.batchNo)).map((r) => [r.step_title, r.status])).toEqual([['Content uniformity sampling', 'cancelled'], ['Blend uniformity sampling', 'open']]);
+    // QA terminates the batch (its signed rejection, as the route writes it).
+    await t.owner`insert into batch_events (batch_id, kind, payload, person_id) values (${b.id}, 'rejected', '{"terminated": true}', (select id from users where username = 'asha'))`;
+    expect((await requests(b.batchNo)).map((r) => r.status)).toEqual(['cancelled', 'cancelled']);
+  });
+});
+
+describe('an in-process result picked from LIMS: blend uniformity', () => {
+  let b: { id: number; batchNo: string };
+  let other: { id: number; batchNo: string };
+  let good = { number: '', resultId: '' };
+  const key = '0.1.0.1';
+  const BU = ['98.0', '101.0', '99.5', '100.5', '97.5', '102.0', '99.0', '100.0', '101.5', '98.5'];
+  beforeAll(async () => {
+    t.master.equipment_.push({ itemId: 'eq-bl', code: 'BL-01', name: 'Blender', version: 1, active: true, kind: 'equipment', type: 'bin blender', room: 'DSP-01' });
+    b = await issue([buStep, buStep]);
+    other = await issue([buStep]);
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
+    const req = `${b.batchNo}/${key}`;
+    good = await inProcess(b.batchNo, req, { values: BU, reported: mean(BU), figure: 'mean' });
+    await inProcess(b.batchNo, `${b.batchNo}/0.1.1.1`, { values: BU, reported: mean(BU), figure: 'mean' });          // another step of this batch
+    await inProcess(other.batchNo, `${other.batchNo}/${key}`, { values: BU, reported: mean(BU), figure: 'mean' });    // another batch
+    await inProcess(b.batchNo, null, { values: BU, reported: mean(BU), figure: 'mean', purpose: 'release' });         // a release sample
+    await inProcess(b.batchNo, req, { values: BU, reported: mean(BU), figure: 'mean', decision: 'REJECTED' });         // not approved
+    await inProcess(b.batchNo, req, { values: BU, reported: '250.0', figure: 'mean', unit: 'mg' });                    // another unit
+    await inProcess(b.batchNo, req, { values: BU.slice(0, 9), reported: mean(BU.slice(0, 9)), figure: 'mean' });      // 9 values
+  });
+
+  it('TC-14 only the approved in-process reports of THIS step\'s request in % are offered', async () => {
+    const p = await ipPicks(b.id, key);
+    expect(p.link).toBe('ok');
+    expect(p.request).toBe(`${b.batchNo}/${key}`);
+    expect(p.results.map((r) => [r.coaNumber, r.individual?.length])).toEqual([[good.number, 10], [expect.stringMatching(/^IPR26/), 9]]);
+    expect(p.results[0]!.individual).toEqual(BU);
+  });
+
+  it('TC-14 a result of another step, another batch, a release sample, an unapproved report or another unit is refused', async () => {
+    const ids = (await t.owner.unsafe(`select r.result_id::text as id from ${L}.result_v1 r join ${L}.coa_v1 c using (coa_id)
+      where c.lot_number in ($2, $3) and r.test_key = 'cu' and r.result_id <> $1 and coalesce(array_length(r.individual_values, 1), 0) = 10`, [good.resultId, b.batchNo, other.batchNo])).map((x) => x.id as string);
+    expect(ids).toHaveLength(5);
+    for (const id of ids) {
+      expect(await problems(recordAt(b.id, key, { results: { lims: id } }))).toEqual([`Content at 10 locations (% of label claim): that result is not a result in % of an approved in-process report of request ${b.batchNo}/${key} (this step) in LIMS.`]);
+    }
+  });
+
+  it('TC-14 a result with 9 values for 10 locations is refused in plain words', async () => {
+    const nine = (await ipPicks(b.id, key)).results.find((r) => r.individual?.length === 9)!;
+    expect(await problems(recordAt(b.id, key, { results: { lims: nine.resultId } }))).toEqual([expect.stringMatching(/has 9 values in LIMS; Content at 10 locations \(% of label claim\) takes exactly 10\. Values are never added or left out/)]);
+  });
+
+  it('TC-14 while LIMS answers typing the results is refused; the pick fills the 10 locations in LIMS\'s order and the block\'s calculations run on them', async () => {
+    expect(await problems(recordAt(b.id, key, { results: BU }))).toEqual([`Content at 10 locations (% of label claim) comes from LIMS: pick the result of in-process request ${b.batchNo}/${key} once QC has approved it there.`]);
+    expect((await recordAt(b.id, key, { results: { lims: good.resultId } })).statusCode).toBe(200);
+    const s = (await stepOf(b.id, key)) as StepJson & { results: Record<string, { ok: boolean; value: string; shown: string }> };
+    expect(s.values.results).toEqual(BU.map((value) => ({ value, unit: '%' })));
+    expect(s.source.results).toEqual({ from: 'lims', asOf: null, ref: good.resultId, request: `${b.batchNo}/${key}`,
+      shown: expect.stringMatching(new RegExp(`^LIMS in-process report ${good.number}: Uniformity \\(request ${b.batchNo}/${key.replace(/\./g, '\\.')}, requested \\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z\\), 10 values, mean ${mean(BU).replace('.', '\\.')} % as reported, analysis LA26009$`)) });
+    // The mean and RSD (T7) and each location (C3) as on typed values.
+    const typed = await issue([buStep]);
+    await as('asha', 'POST', `/api/batches/${typed.id}/steps/${key}/start`, {});
+    await cut();
+    try { expect((await recordAt(typed.id, key, { results: BU })).statusCode).toBe(200); } finally { await restore(); }
+    const h = (await stepOf(typed.id, key)) as StepJson & { results: Record<string, unknown> };
+    expect(s.results).toEqual(h.results);
+    expect(s.results.meanContent).toMatchObject({ ok: true });
+    expect(Number(s.results.meanContent!.value)).toBeCloseTo(Number(mean(BU)), 1);
+    expect(h.source.results).toEqual({ from: 'hand', link: 'lims', state: 'down' });
+  });
+
+  it('TC-22 the batch record PDF shows the values from LIMS with the report and request', async () => {
+    const l = (await loadBatch(t.sql, b.id))!;
+    const pdf = JSON.stringify(batchRecordDoc(await recordInput(t.sql, l, t.master), 'ASHA', new Date(), false));
+    expect(pdf).toContain(`from LIMS in-process report ${good.number}: Uniformity (request ${b.batchNo}/${key}, requested `);
+  });
+
+  it('TC-14 LIMS down: the 10 results are typed from the QC report (a second person checks them, QA sees them); a pick is refused', async () => {
+    await cut();
+    try {
+      expect((await ipPicks(b.id, key)).link).toBe('down');
+      expect(await problems(recordAt(b.id, key, { results: { lims: good.resultId } }))).toEqual(['LIMS does not answer now: type Content at 10 locations (% of label claim) from the QC report.']);
+      expect((await recordAt(b.id, key, { results: BU })).statusCode).toBe(200);
+    } finally { await restore(); }
+    const s = await stepOf(b.id, key);
+    expect(s.source.results).toEqual({ from: 'hand', link: 'lims', state: 'down' });
+    const review = (await as('asha', 'GET', `/api/batches/${b.id}/review`)).json() as { hand: { field: string; link: string }[] };
+    expect(review.hand).toContainEqual(expect.objectContaining({ field: 'results', link: 'lims' }));
+  });
+});
+
+describe('an in-process result picked from LIMS: content uniformity in two stages', () => {
+  const key = '0.1.0.1';
+  type CuStep = StepJson & { results: Record<string, { ok: boolean; decision?: string; stageReached?: string; shown?: string }> };
+
+  it('TC-14 L1 fails ("test 20 more"); LIMS keeps 30 values in the same result: the 20 more are values 11 to 30 and L2 is worked out', async () => {
+    const b = await issue([cuStep()]);
+    const req = `${b.batchNo}/${key}`;
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
+    const r = await inProcess(b.batchNo, req, { values: L1_FAIL, reported: av(L1_FAIL), figure: 'AV', test: 'Content uniformity' });
+    expect((await recordAt(b.id, key, { results: { lims: r.resultId } })).statusCode).toBe(200);
+    let s = (await stepOf(b.id, key)) as CuStep;
+    expect(s.results.acceptance).toMatchObject({ ok: true, decision: 'next stage' });
+    expect(s.values.moreResults).toBeUndefined();
+    // Before L2 is in LIMS the 10-value result does not fit the 20 more.
+    expect(await problems(recordAt(b.id, key, { moreResults: { lims: r.resultId } }))).toEqual([expect.stringMatching(/has 10 values in LIMS; Content of 20 more capsules \(% of label claim\) takes exactly 20 \(or 30 with the first 10/)]);
+    // QC tests 20 more: the same result row now has all 30 values (L1's first) and the AV of the 30.
+    const all = [...L1_FAIL, ...MORE];
+    await t.owner.unsafe(`update ${L}.result_v1 set individual_values = $1::numeric[], reported = $2 where result_id = $3`, [`{${all.join(',')}}`, av(all), r.resultId]);
+    expect((await recordAt(b.id, key, { moreResults: { lims: r.resultId } })).statusCode).toBe(200);
+    s = (await stepOf(b.id, key)) as CuStep;
+    expect(s.values.results).toEqual(L1_FAIL.map((value) => ({ value, unit: '%' })));
+    expect(s.values.moreResults).toEqual(MORE.map((value) => ({ value, unit: '%' })));
+    expect(s.source.moreResults).toMatchObject({ from: 'lims', shown: expect.stringContaining('30 values, acceptance value') });
+    expect(s.results.acceptance).toMatchObject({ ok: true, decision: 'pass', stageReached: 2 });
+    expect(s.results.acceptance!.shown).toMatch(/^L2: /);
+  });
+
+  it('TC-14 L2 refused when the first 10 of the 30 are not the 10 recorded for L1', async () => {
+    const b = await issue([cuStep()]);
+    const req = `${b.batchNo}/${key}`;
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
+    const r = await inProcess(b.batchNo, req, { values: L1_FAIL, reported: av(L1_FAIL), figure: 'AV' });
+    expect((await recordAt(b.id, key, { results: { lims: r.resultId } })).statusCode).toBe(200);
+    const changed = ['86.0', ...L1_FAIL.slice(1), ...MORE];
+    const r2 = await inProcess(b.batchNo, req, { values: changed, reported: av(changed), figure: 'AV' });
+    expect(await problems(recordAt(b.id, key, { moreResults: { lims: r2.resultId } }))).toEqual([expect.stringMatching(/^The first 10 values of Uniformity of in-process report IPR26\d+ \(86\.0, /)]);
+    expect((await stepOf(b.id, key)).values.moreResults).toBeUndefined();
+  });
+
+  it('TC-14 all 30 at once: one pick of the 30-value result fills L1 and L2; an AV that does not agree is refused naming both', async () => {
+    const b = await issue([cuStep()]);
+    const req = `${b.batchNo}/${key}`;
+    await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/start`, {});
+    const all = [...L1_FAIL, ...MORE];
+    const wrong = await inProcess(b.batchNo, req, { values: all, reported: '3.0', figure: 'AV' });
+    expect(await problems(recordAt(b.id, key, { results: { lims: wrong.resultId } }))).toEqual([`LIMS reports the acceptance value of Uniformity of in-process report ${wrong.number} as 3.0; TrueBatch works it out from the same 30 values as ${av(all)}: ask QC to check the result in LIMS.`]);
+    const r = await inProcess(b.batchNo, req, { values: all, reported: av(all), figure: 'AV' });
+    expect((await recordAt(b.id, key, { results: { lims: r.resultId } })).statusCode).toBe(200);
+    const s = (await stepOf(b.id, key)) as CuStep;
+    expect([(s.values.results as object[]).length, (s.values.moreResults as object[]).length]).toEqual([10, 20]);
+    expect(s.results.acceptance).toMatchObject({ ok: true, decision: 'pass', stageReached: 2 });
+  });
+});
+
+// Round 43 (found by the API edition's periodic reactions): a step with rounds takes an earlier round's sample, each
+// result filling one round; lab_request_v1 follows the picks, and the round that ends the rounds closes the rest.
+describe('round 43: an in-process result of an earlier round of the same step', () => {
+  const FAIL30 = [...L1_FAIL, ...L1_FAIL, ...L1_FAIL];
+  let b: { id: number; batchNo: string };
+  let first = { number: '', resultId: '' };
+  let third = { number: '', resultId: '' };
+  const done = async (key: string) => as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/done`, { proof: proofFor('asha'), contentHash: ((await stepOf(b.id, key)) as StepJson & { contentHash: string }).contentHash });
+  beforeAll(async () => {
+    b = await issue([cuStep({ checker: false, flow: { kind: 'repeat-until', maxRounds: 3, stop: 'acceptance' } })]);
+    // Round 1 is sampled; its result is not back yet, so round 1 is signed with results typed from the QC report while
+    // LIMS is down (they fail: the rounds go on).
+    expect((await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.1/start`, {})).statusCode).toBe(200);
+    await cut();
+    try { expect((await recordAt(b.id, '0.1.0.1', { results: FAIL30.slice(0, 10), moreResults: FAIL30.slice(10) })).statusCode).toBe(200); } finally { await restore(); }
+    const d1 = await done('0.1.0.1');
+    expect(d1.statusCode, d1.body).toBe(200);
+    expect((await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.2/start`, {})).statusCode).toBe(200);
+    first = await inProcess(b.batchNo, `${b.batchNo}/0.1.0.1`, { values: FAIL30, reported: av(FAIL30), figure: 'AV' });
+  });
+
+  it('round 2 is offered round 1\'s sample and picks it; the record says it was sampled in round 1 and when', async () => {
+    const p = await ipPicks(b.id, '0.1.0.2');
+    expect(p.request).toBe(`${b.batchNo}/0.1.0.2`);
+    expect(p.results.map((r) => [r.coaNumber, (r as { requestId?: string }).requestId])).toEqual([[first.number, `${b.batchNo}/0.1.0.1`]]);
+    expect(p.results[0]!.shown).toMatch(/sampled in round 1 at \d{4}-/);
+    expect((await recordAt(b.id, '0.1.0.2', { results: { lims: first.resultId } })).statusCode).toBe(200);
+    const s = await stepOf(b.id, '0.1.0.2');
+    expect((s.values.moreResults as unknown[]).length).toBe(20);
+    expect(s.source.results).toMatchObject({ from: 'lims', ref: first.resultId, request: `${b.batchNo}/0.1.0.1`,
+      shown: expect.stringMatching(new RegExp(`\\(request ${b.batchNo}/0\\.1\\.0\\.1, sampled in round 1 at .+\\), 30 values`)) });
+    expect((await requests(b.batchNo)).map((r) => [r.step_key, r.status])).toEqual([['0.1.0.1', 'done'], ['0.1.0.2', 'open']]);
+    const d2 = await done('0.1.0.2');
+    expect(d2.statusCode, d2.body).toBe(200);
+  });
+
+  it('a later round never takes the same result again; an earlier round never takes a later round\'s sample', async () => {
+    third = await inProcess(b.batchNo, `${b.batchNo}/0.1.0.3`, { values: L1_PASS, reported: av(L1_PASS), figure: 'AV' });
+    // Round 2 is offered only the result it picked itself, never round 3's sample: a later round's sample never fills an earlier round.
+    expect((await ipPicks(b.id, '0.1.0.2')).results.map((r) => r.coaNumber)).toEqual([first.number]);
+    expect((await as('asha', 'POST', `/api/batches/${b.id}/steps/0.1.0.3/start`, {})).statusCode).toBe(200);
+    expect((await ipPicks(b.id, '0.1.0.3')).results.map((r) => r.coaNumber)).toEqual([third.number]);
+    expect(await problems(recordAt(b.id, '0.1.0.3', { results: { lims: first.resultId } })))
+      .toEqual([`Content of 10 capsules (% of label claim): in-process report ${first.number} (request ${b.batchNo}/0.1.0.1) was used in another round of this step: one result fills one round.`]);
+  });
+
+  it('the round that ends the rounds closes the requests no round picked (cancelled); the picked ones stay done', async () => {
+    expect((await recordAt(b.id, '0.1.0.3', { results: { lims: third.resultId } })).statusCode).toBe(200);
+    expect((await requests(b.batchNo)).map((r) => r.status)).toEqual(['done', 'open', 'done']);
+    const d3 = await done('0.1.0.3');
+    expect(d3.statusCode, d3.body).toBe(200);
+    expect((await requests(b.batchNo)).map((r) => [r.step_key, r.status])).toEqual([['0.1.0.1', 'done'], ['0.1.0.2', 'cancelled'], ['0.1.0.3', 'done']]);
+  });
+
+  it('a request still open when production approves the batch record is cancelled (nothing more is sampled)', async () => {
+    const c = await issue([cuStep()]);
+    await as('asha', 'POST', `/api/batches/${c.id}/steps/0.1.0.1/start`, {});
+    expect((await requests(c.batchNo)).map((r) => r.status)).toEqual(['open']);
+    await t.owner`insert into batch_events (batch_id, kind, payload, person_id) values (${c.id}, 'production_approved', '{}', (select id from users where username = 'asha'))`;
+    expect((await requests(c.batchNo)).map((r) => r.status)).toEqual(['cancelled']);
+  });
+});
+
+// Round 43 (found by the Injectables edition): a step started before round 42 opened no lab request, so no pick could
+// ever come: its in-process fields are typed by hand, marked so, checked by a second person and listed for QA.
+describe('round 43: a step started before LIMS in-process requests', () => {
+  let b: { id: number; batchNo: string };
+  const key = '0.1.0.1';
+  beforeAll(async () => {
+    b = await issue([cuStep({ checker: false })]);
+    // Started as before round 42: a "started" event without a lab request.
+    await t.owner`insert into step_events (batch_id, stage, sub, step, round, kind, payload, person_id)
+      values (${b.id}, 0, 1, 0, 1, 'started', ${t.owner.json({ where: 'Stage 0' })}, (select id from users where username = 'asha'))`;
+  });
+
+  it('it has no lab request; while LIMS answers its results are typed, marked "started before LIMS in-process requests"; a pick is refused', async () => {
+    expect(await requests(b.batchNo)).toEqual([]);
+    const p = (await ipPicks(b.id, key)) as IpPicks & { noRequest?: boolean };
+    expect([p.link, p.noRequest, p.results]).toEqual(['ok', true, []]);
+    const r = await inProcess(b.batchNo, `${b.batchNo}/${key}`, { values: L1_PASS, reported: av(L1_PASS), figure: 'AV' });
+    expect(await problems(recordAt(b.id, key, { results: { lims: r.resultId } })))
+      .toEqual(['Content of 10 capsules (% of label claim): this step was started before LIMS in-process requests: type it from the QC report.']);
+    const typed = await recordAt(b.id, key, { results: L1_PASS });
+    expect(typed.statusCode, typed.body).toBe(200);
+    const s = await stepOf(b.id, key);
+    expect(s.values.results).toEqual(L1_PASS.map((value) => ({ value, unit: '%' })));
+    expect(s.source.results).toEqual({ from: 'hand', link: 'lims', state: 'no_request' });
+  });
+
+  it('a second person checks it (the master asks for no check), QA\'s review lists it and the PDF says why it was typed', async () => {
+    const s = (await stepOf(b.id, key)) as StepJson & { contentHash: string; state: string };
+    const d = await as('asha', 'POST', `/api/batches/${b.id}/steps/${key}/done`, { proof: proofFor('asha'), contentHash: s.contentHash });
+    expect(d.statusCode, d.body).toBe(200);
+    expect(((await stepOf(b.id, key)) as StepJson & { state: string }).state).toBe('done_awaiting_check');
+    const review = (await as('asha', 'GET', `/api/batches/${b.id}/review`)).json() as { hand: { field: string; link: string; state: string }[] };
+    expect(review.hand).toContainEqual(expect.objectContaining({ field: 'results', link: 'lims', state: 'no_request' }));
+    const l = (await loadBatch(t.sql, b.id))!;
+    expect(JSON.stringify(batchRecordDoc(await recordInput(t.sql, l, t.master), 'ASHA', new Date(), false))).toContain('BY HAND: started before LIMS in-process requests');
+  });
+
+  it('a step with its own lab request is not one: typing is still refused while LIMS answers', async () => {
+    const c = await issue([cuStep()]);
+    await as('asha', 'POST', `/api/batches/${c.id}/steps/${key}/start`, {});
+    expect(await problems(recordAt(c.id, key, { results: L1_PASS })))
+      .toEqual([`Content of 10 capsules (% of label claim) comes from LIMS: pick the result of in-process request ${c.batchNo}/${key} once QC has approved it there.`]);
   });
 });

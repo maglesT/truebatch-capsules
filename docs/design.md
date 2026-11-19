@@ -79,8 +79,38 @@ answering) or **ok**.
   product code) or this lot number (material sample, the line's material), of a release sample (a lot: release or
   retest); a stability or investigation sample, another batch, lot, product or material is never offered and refused
   with its reason. Absent or down: typed by hand as before, marked "typed by hand: LIMS …" (a step value then needs a
-  second-person check and is listed for QA). Not from LIMS: the individual results of blend and content uniformity
-  (`result_v1` has one figure per test) and the certificate values of a lot (MMS gives them with the lot).
+  second-person check and is listed for QA). Not from LIMS: the certificate values of a lot (MMS gives them with the
+  lot).
+- **LIMS in-process tests** (port of Tablets round 42, owner 19 Nov 2026: in-process lab tests are picked, not typed).
+  A block field with `qc: 'in_process'` is an in-process test done in the QC lab on a sample of THIS step (`qc: true`
+  stays the release CoA's result, unchanged). When such a step starts, it opens a lab request: the "started" event keeps
+  the stage and step in words and the tests (`labRequestOf`; insert-only like every event, so the batches table stays
+  insert-only), published as `report.lab_request_v1` (`db/migrations/0020`, its status `0021`; columns: `request_id`
+  '<batch number>/<step key>' (stage.sub-batch.step.round, so a repeated round or sub-batch has its own), `batch_no`,
+  `product_code`, `stage_title`, `step_key`, `step_title`, `tests` ([{name, label, unit, individual: n or null}]),
+  `requested_at`, `status` (open, done or cancelled: below), `read_at`, `data_as_of`). LIMS reads it from every
+  TrueBatch edition as its own link, so packing migrates the same files and publishes the same view (empty: no packing
+  block has such a test). LIMS publishes its in-process reports in `coa_v1`/`result_v1` with purpose `in_process`, the
+  report number (IPR…) in `coa_number`, the `request_id`, and in `result_v1` the `individual_values` (in order) and
+  `figure` (what `reported` is: mean, AV or result), all read through to_jsonb. Fixed rules (`coaRefusal` with the
+  request, `inProcessFit`): only an APPROVED in-process report whose request is this step's, or an EARLIER round of the
+  same step (`requestFits`; never a later round's, another step's or batch's); the field's unit (`sameUnit`); a single
+  number takes the reported figure; a list takes LIMS's individual values in LIMS's order, exactly the block's count,
+  never padded or cut; its `figure` must be the field's (`figure: 'mean'` or `'AV'`), and TrueBatch works the figure
+  out again from the same values (the mean, or the T14 acceptance value with the step's dosage unit) and refuses,
+  naming both numbers, when it does not agree. Content uniformity is staged: LIMS keeps one result with 10 values after
+  L1 and 30 after L2 (L1's 10 first); the 20 more are asked only when the step's own C6 says so. One result fills one
+  round. Each picked field keeps "LIMS in-process report IPR…: test (request …, sampled in round N at <time>), …" as its
+  source; the step, QA's review and the PDF show it. `status` is done once a round of the step picked a result of the
+  request, or this round's test was typed by hand; cancelled when the round is set not applicable, the step's rounds
+  ended without picking it (`labClosed` on the ending "done" event), or the batch is rejected, terminated or approved by
+  production; open until then. While LIMS answers typing is refused, and the screen shows "Waiting for LIMS: request
+  <id>" while no result is there. Absent or down: typed by hand as before (second-person check, QA's review lists it).
+  A step started before this port has no lab request: its in-process fields are typed by hand, marked "typed by hand:
+  started before LIMS in-process requests" (`no_request`), checked by a second person and listed for QA. Marked in
+  Capsules: blend uniformity (the 10 location results, figure mean) and content uniformity (the 10 and the 20 more,
+  figure AV). Not marked (shop-floor IPC): fill weights, closed length, disintegration, LOD, density and flow, sieve
+  analysis, soft gel shell water. The uniformity-by-weight assay stays the batch's release assay (`qc: true`).
 - **Published** (`db/migrations/0006_report_views.sql`): `batch_fact_v1` and `equipment_use_v1` with Batchwright's
   names and columns, so the Logbook and Deviations read TrueBatch as they read Batchwright, and `deviation_note_v1`
   for Deviations to file notes later. `batch_fact_v1` has one more column at its end (`0007`): `manufactured_on`, the
