@@ -47,7 +47,7 @@ export DATABASE_URL=postgres://truebatch_capsules_owner:dev@localhost:5432/trueb
 # Medhanta core: people, sign-in, TrueBatch permissions and master data are managed there
 export MASTER_DATA_DATABASE_URL=postgres://truebatch_capsules_app:...@<core db>:5432/master_data   # read through its report views
 # Optional links, each set by the platform only while the link is on:
-# DEVIATIONS_DATABASE_URL, QMS_DATABASE_URL, LOGBOOK_DATABASE_URL, MMS_DATABASE_URL
+# DEVIATIONS_DATABASE_URL, QMS_DATABASE_URL, LOGBOOK_DATABASE_URL, MMS_DATABASE_URL, RECRUITMENT_DATABASE_URL, LIMS_DATABASE_URL
 export OIDC_ISSUER=https://<core domain>/oidc OIDC_CLIENT_SECRET=... OIDC_REDIRECT_URI=http://localhost:3000/cb
 npm run migrate
 npm run dev        # API on :3000
@@ -61,7 +61,7 @@ gets its own schema. The test login must be able to create roles and databases (
 
 ## On the platform
 `ops/manifest.draft.json` is the draft of the product's platform manifest (permissions, back-channel logout, the
-views it reads from master data and the four linked products, and the views it publishes). The app reads its database from `TRUEBATCH_CAPSULES_DATABASE_URL` and runs as the restricted login
+views it reads from master data and the linked products, and the views it publishes). The app reads its database from `TRUEBATCH_CAPSULES_DATABASE_URL` and runs as the restricted login
 `truebatch_capsules_app`, which cannot change or delete audit rows or signatures. Migrations run as the database owner.
 
 ## Demo installations
