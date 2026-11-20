@@ -3,6 +3,7 @@
 // is struck through and kept with the reason, the person and the time.
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces.js';
 import { findBlock, type Block } from '../shared/blocks/index.js';
+import { packWords } from '../shared/blocks/finished-goods.js';
 import { materialLines, type Step } from '../shared/master/schema.js';
 import { batchView, deviations, exceptions, exceptionText, NOTE_EVENTS, deviationNumber, deviationText, fieldLabel, handFields, lateItems, lineQuantity, notYetText, cutShort, terminatedText, TERMINATED_STATE, openSteps, PROVIDER_NAME, deviationStatusWords, stepTitle, unitName, headline, limitOf, withoutVerdict, statusWords, CERTIFICATE, handWhy, perPackText, trainingOf, trainingText, trainingTyped, skillText, bulkCheckedText, bulkNotCheckedText, bulkOpenText, qcReportText, type BulkDeviations, type DeviationStatus, type EventKind, type Source, type Stored, type StepView, type Value } from '../shared/engine/index.js';
 import type { LoadedBatch } from './routes/batches.js';
@@ -145,7 +146,8 @@ export function batchRecordDoc(r: RecordInput, by: string, printedAt = new Date(
       ...yields].filter(Boolean).join(' · '), { margin: [0, 0, 0, 4] }));
     content.push(table([120, '*', '*', 175], ['Step', 'Recorded values', 'Calculations, limits and result', 'Who and when'], mine.map((v) => {
       const st = stepOf(v);
-      const block = findBlock(st.block);
+      const fb = findBlock(st.block);
+      const block = fb && packWords(fb, doc.pack);
       return [
         { stack: [small(stepName(v), { bold: true }), small((ended && TERMINATED_STATE[v.state]) || (STATE[v.state] ?? v.state), { color: v.state === 'not_applicable' ? '#666666' : undefined })] },
         { stack: block ? valueLines(block, v, who, unitOf(v)) : [] },

@@ -7,6 +7,7 @@ import {
 } from '../api-floor.js';
 import { Alerts } from './BatchScreen.js';
 import { deviationText, exceptionText } from '../../../shared/engine/release.js';
+import { packWords } from '../../../shared/blocks/finished-goods.js';
 import { FieldInput, type InProcessPicks, type QcPick } from './Fields.js';
 import { DemoSkip } from './DemoSkip.js';
 import { ReasonDialog } from './ReasonDialog.js';
@@ -60,7 +61,7 @@ function settingsText(doc: BatchDetail['master']['doc'], block: Block, st: Step,
 export function StepScreen({ me, d, blocks, row, now, reload }: { me: Me; d: BatchDetail; blocks: Block[]; row: StepRow; now: number; reload: (b?: boolean) => Promise<void> }) {
   const doc = d.master.doc;
   const st = stepOf(doc, row.key);
-  const block = blockOf(blocks, st)!;
+  const block = packWords(blockOf(blocks, st)!, doc.pack);
   const stage = doc.stages[row.key.stage]!;
   const base = `/api/batches/${d.batch.id}/steps/${row.id}`;
   const title = stepTitle(doc, blocks, st);
@@ -167,8 +168,8 @@ export function StepScreen({ me, d, blocks, row, now, reload }: { me: Me; d: Bat
   const logbook = useLogbookItems(block.fields.some((f) => f.kind === 'machine' || f.kind === 'room'));
   const fits = (f: BlockField) => (f.kind === 'room' ? md.room.filter((r) => r.active && !roomRefusal(stage, r))
     : f.kind === 'machine' ? md.machine.filter((m) => m.active && !machineRefusal(stage, f, m, md.room, dispensingRooms(doc, md.room))) : []);
-  const pickOf = (f: BlockField) => inLogbook(fits(f), logbook);
-  const picksFor = (f: BlockField) => pickOf(f).offered;
+  const pickOf = (f: BlockField) => inLogbook(fits(f), logbook?.items ?? null);
+  const picksFor = (f: BlockField) => pickOf(f).offered.map((p) => ({ ...p, notFit: logbook?.notFit[p.itemId] }));
   // An empty picker says why (once master data is read) and what the Logbook leaves out; one with choices says nothing.
   const mdRead = md.room.length > 0 && (md.machine.length > 0 || !block.fields.some((x) => x.kind === 'machine'));
   const noteFor = (f: BlockField) => [mdRead && !fits(f).length ? emptyNote(stage, f, md.machine, md.room, dispensingRooms(doc, md.room)) : null, pickOf(f).note];

@@ -328,3 +328,16 @@ describe('the serialisation check (the customer system numbers, checked never ge
     expect(doneProblems(d, v, at(10))).toEqual(['Out of limits: Serial numbers accounted for. Add a deviation note first.']);
   });
 });
+
+describe('display words of a pack (display backlog 19 Nov 2026)', () => {
+  it('a pack with no carton material counts its packs in "cartons or shippers"; one with a carton keeps "cartons"', async () => {
+    const { packWords } = await import('../shared/blocks/finished-goods.js');
+    const fg = findBlock({ id: 'finished-goods', version: 1 })!;
+    const label = (b: typeof fg, n: string) => b.fields.find((f) => f.name === n)!.label;
+    const bottles = packWords(fg, { materials: [{ kind: 'bottle' }, { kind: 'closure' }, { kind: 'shipper' }] });
+    expect(label(bottles, 'cartons')).toBe('Finished cartons or shippers');
+    expect(label(bottles, 'packs')).toBe('Good packs in finished cartons or shippers');
+    expect(packWords(fg, { materials: [{ kind: 'foil' }, { kind: 'carton' }] })).toBe(fg);
+    expect(packWords(findBlock({ id: 'line-clearance', version: 1 })!, { materials: [] }).id).toBe('line-clearance');
+  });
+});
