@@ -39,6 +39,7 @@ There is one fixed list, one line per unit. Only units of the same kind convert.
 | temperature | °C °F K (offsets exact); temperature difference Δ°C ΔK Δ°F |
 | force | N kN kp (1 kp = 9.80665 N exactly) |
 | pressure | Pa hPa kPa MPa N/mm² bar mbar psi mmHg atm kgf/cm² kN/cm² |
+| force per length | N/mm kN/cm (a roller compactor's specific roll force) |
 | content | % %w/w ppm µg/mg mg/g (1000 µg/mg = 100 %); %w/v mg/mL g/L (a separate kind); density g/mL g/cm³ kg/L kg/m³ |
 | rates | rpm; g/h g/min kg/h g/s; mL/h mL/min L/h L/min m³/h cfm; units/h units/min tablets/h tablets/min |
 | electrical | mA A; W kW; kJ/kg kWh/kg |

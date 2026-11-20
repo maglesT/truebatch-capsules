@@ -10,7 +10,7 @@ import { refuse } from './refuse.js';
 
 export type Kind =
   | 'number' | 'count' | 'mass' | 'volume' | 'length' | 'area' | 'time'
-  | 'temperature' | 'temperature difference' | 'force' | 'pressure'
+  | 'temperature' | 'temperature difference' | 'force' | 'force per length' | 'pressure'
   | 'fraction' | 'mass concentration' | 'density' | 'rotation speed' | 'angle' | 'mass per area' | 'Strong-Cobb hardness'
   | 'mass rate' | 'volume rate' | 'count rate' | 'current' | 'power' | 'specific energy'
   | 'relative humidity' | 'absolute humidity' | 'absolute humidity per volume' | 'log' | 'frequency' | 'rpm per Hz' | 'charge'
@@ -48,6 +48,8 @@ const TABLE: [string, Kind, Dec | string, string?][] = [
   ['°F', 'temperature', d(5).div(9), d(-160).div(9).toString()], // °C = (°F − 32) × 5/9
   ['Δ°C', 'temperature difference', '1'], ['ΔK', 'temperature difference', '1'], ['Δ°F', 'temperature difference', d(5).div(9)],
   ['N', 'force', '1'], ['kN', 'force', '1000'], ['kp', 'force', '9.80665'], ['kgf', 'force', '9.80665'], // 1 kp = 1 kgf = 9.80665 N exactly
+  // A roller compactor's specific roll force: the force per cm of roll width (1 kN/cm = 100 N/mm).
+  ['N/mm', 'force per length', '1'], ['kN/cm', 'force per length', '100'],
   ['Pa', 'pressure', '1'], ['hPa', 'pressure', '100'], ['kPa', 'pressure', '1000'], ['MPa', 'pressure', '1000000'],
   ['N/mm²', 'pressure', '1000000'], ['bar', 'pressure', '100000'], ['mbar', 'pressure', '100'], ['psi', 'pressure', PSI],
   ['mmHg', 'pressure', '133.322387415'], ['atm', 'pressure', '101325'],
