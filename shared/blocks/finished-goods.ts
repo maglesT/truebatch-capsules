@@ -31,3 +31,13 @@ export const finishedGoods: Block = {
       limit: '$accountabilityLimit' } },
   ],
 };
+
+/**
+ * A pack with no carton material (a bottle pack: packs per carton = bottles per shipper) counts its packs in cartons or
+ * shippers: the labels say so (display backlog 19 Nov 2026). Display only; the values and checks are the same.
+ */
+export function packWords(b: Block, pack?: { materials: readonly { kind: string }[] } | null): Block {
+  if (b.id !== 'finished-goods' || !pack || pack.materials.some((m) => m.kind === 'carton')) return b;
+  const label: Record<string, string> = { packs: 'Good packs in finished cartons or shippers', cartons: 'Finished cartons or shippers' };
+  return { ...b, fields: b.fields.map((f) => (label[f.name] ? { ...f, label: label[f.name]! } : f)) };
+}

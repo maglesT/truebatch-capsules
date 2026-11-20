@@ -152,4 +152,8 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   await qa2.getByRole('dialog').getByRole('button', { name: 'Make effective' }).click();
   await expect(qa2.locator('.d-title')).toContainText('Effective');
   await expect(qa2.locator('.timeline')).toContainText('change control CC-2026-031');
+  // Phone width (390 px): the long step names in "Comment about" do not make the page scroll sideways.
+  await qa2.setViewportSize({ width: 390, height: 844 });
+  await expect(qa2.getByLabel('Comment about')).toBeVisible();
+  expect(await qa2.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
