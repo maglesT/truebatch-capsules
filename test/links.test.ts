@@ -80,6 +80,8 @@ beforeAll(async () => {
     author: ['truebatch_capsules.master.author'], checker: ['truebatch_capsules.master.check'], quality: ['truebatch_capsules.master.approve'], quality2: ['truebatch_capsules.master.approve'],
     issuer: ['truebatch_capsules.batch.issue'], asha: ['truebatch_capsules.batch.operate', 'truebatch_capsules.batch.check'], ravi: ['truebatch_capsules.batch.check'],
     meera: ['truebatch_capsules.qa.release'], mona: ['truebatch_capsules.qa.release', 'truebatch_capsules.batch.operate'],
+    // Owner decision 20 Nov 2026: decides notes without a number (granted per employee, not by role).
+    dina: ['truebatch_capsules.exception.decide'],
   } as const;
   for (const [name, perms] of Object.entries(people)) {
     ids[name] = await seedUser(t.owner, name, [...perms]);
@@ -524,7 +526,9 @@ describe('the views TrueBatch publishes', () => {
     expect(await columns('equipment_use_v1')).toEqual(['batch_number text', 'equipment_code text', 'equipment_type text', 'room_code text', 'step text',
       'started_at timestamp with time zone', 'ended_at timestamp with time zone', 'read_at timestamp with time zone', 'data_as_of timestamp with time zone', 'step_name text']);
     expect(await columns('deviation_note_v1')).toEqual(['note_id bigint', 'source_ref text', 'batch_number text', 'product_code text', 'step text', 'note text',
-      'reference text', 'status text', 'noted_at timestamp with time zone', 'read_at timestamp with time zone', 'data_as_of timestamp with time zone']);
+      'reference text', 'status text', 'noted_at timestamp with time zone', 'read_at timestamp with time zone', 'data_as_of timestamp with time zone',
+      // Owner decision 20 Nov 2026 (0025): the decision on a note without a number, and when it was sent to Deviations.
+      'decision text', 'sent_at timestamp with time zone']);
   });
 
   it('the Logbook\'s and Deviations\' own queries read TrueBatch batches, the equipment they used and the notes', async () => {
@@ -719,6 +723,49 @@ describe('the views TrueBatch publishes', () => {
 
   it('nobody reads the views without a link: the app login itself has no grant', async () => {
     await expect(t.sql.unsafe(`select * from ${rep()}.batch_fact_v1`)).rejects.toMatchObject({ code: '42501' });
+  });
+});
+
+describe('a note without a number is closed here or sent to Deviations (owner decision 20 Nov 2026)', () => {
+  type Exc = { note: number; decision: string; decided?: { personName: string; payload: { reason?: string } } };
+  let b: { id: number; batchNo: string };
+  const batch = async () => ((await as('dina', 'GET', `/api/batches/${b.id}`)).json() as { batch: { exceptions: Exc[]; contentHash: string } }).batch;
+  const row = async (note: number) => (await t.owner.unsafe(`select decision, sent_at from ${t.schema}_report.deviation_note_v1 where note_id = $1`, [note]))[0] as unknown as { decision: string; sent_at: Date | null };
+  beforeAll(async () => { b = await issue(small([{ steps: [{ checker: true }, yieldStep] }])); });
+
+  it('TB-21 send to Deviations: the view says "sent" with the time, so Deviations files it; only a person holding the permission decides, once', async () => {
+    expect((await act('asha', b.id, '0.1.0.1', 'note', { text: 'Binder added late' })).statusCode).toBe(200);
+    const [x] = (await batch()).exceptions;
+    expect(x).toMatchObject({ decision: 'open' });
+    expect(await row(x!.note)).toEqual({ decision: 'open', sent_at: null });
+    // QA release alone is not the permission.
+    expect((await as('meera', 'POST', `/api/batches/${b.id}/send-exception`, { note: x!.note })).statusCode).toBe(403);
+    const sent = await as('dina', 'POST', `/api/batches/${b.id}/send-exception`, { note: x!.note });
+    expect(sent.statusCode, sent.body).toBe(200);
+    const r = await row(x!.note);
+    expect(r.decision).toBe('sent');
+    expect(r.sent_at).toBeInstanceOf(Date);
+    expect((await as('dina', 'POST', `/api/batches/${b.id}/close-exception`, { note: x!.note, reason: 'x', proof: proofFor('dina'), contentHash: (await batch()).contentHash })).json())
+      .toMatchObject({ problems: ['This note is already sent to Deviations.'] });
+    const [audit] = await t.owner`select action from audit_log where object_type = 'batch' and object_id = ${String(b.id)} and action = 'batch.exception_sent'`;
+    expect(audit).toBeDefined();
+  });
+
+  it('TB-21 close here: reason and e-signature; the view says "closed" and is never sent; a note with a number has no decision', async () => {
+    expect((await act('asha', b.id, '0.1.0.1', 'note', { text: 'Sieve screen changed mid-run' })).statusCode).toBe(200);
+    expect((await act('asha', b.id, '0.1.0.1', 'note', { text: 'pH', reference: 'DEV-26-0001' })).statusCode).toBe(200);
+    const x = (await batch()).exceptions.find((e) => e.decision === 'open')!;
+    const res = await as('dina', 'POST', `/api/batches/${b.id}/close-exception`, { note: x.note, reason: 'Same mesh size, documented in the step', proof: proofFor('dina'), contentHash: (await batch()).contentHash });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(await row(x.note)).toEqual({ decision: 'closed', sent_at: null });
+    expect((await batch()).exceptions.find((e) => e.note === x.note)).toMatchObject({ decision: 'closed', decided: { personName: 'DINA', payload: { reason: 'Same mesh size, documented in the step' } } });
+    const [sig] = await t.owner`select meaning from signatures where object_type = 'batch_event' and object_id = ${(res.json() as { eventId: number }).eventId}`;
+    expect(sig).toEqual({ meaning: 'exception_closed' });
+    const numbered = await t.owner.unsafe(`select decision, sent_at from ${t.schema}_report.deviation_note_v1 where batch_number = $1 and reference is not null`, [b.batchNo]);
+    expect(numbered).toEqual([{ decision: null, sent_at: null }]);
+    // QA's review lists both decisions.
+    const rv = (await as('meera', 'GET', `/api/batches/${b.id}/review`)).json() as { exceptions: Exc[] };
+    expect(rv.exceptions.map((e) => e.decision).sort()).toEqual(['closed', 'sent']);
   });
 });
 

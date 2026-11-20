@@ -18,6 +18,8 @@ export const MEANING_NEEDS = {
   qc_approved: 'truebatch_capsules.qc.approve',
   released: 'truebatch_capsules.qa.release',
   rejected: 'truebatch_capsules.qa.release',
+  // Owner decision 20 Nov 2026: a deviation note without a number closed here, in the batch record.
+  exception_closed: 'truebatch_capsules.exception.decide',
 } as const satisfies Record<string, Permission>;
 export type Meaning = keyof typeof MEANING_NEEDS;
 export const MEANINGS = Object.keys(MEANING_NEEDS) as Meaning[];
