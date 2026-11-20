@@ -27,6 +27,7 @@ import { granulate } from './granulate.js';
 import { lineClearance } from './line-clearance.js';
 import { lubricate } from './lubricate.js';
 import { mix } from './mix.js';
+import { rollerCompact } from './roller-compact.js';
 import { polishPrint } from './polish-print.js';
 import { qaSample } from './qa-sample.js';
 import { sieveAnalysis } from './sieve-analysis.js';
@@ -59,7 +60,7 @@ export type { Block, BlockField, BlockSetting } from './format.js';
 // In the order of a process: dispensing and preparation, granulation and blending, gel mass, filling or encapsulation,
 // drying, banding, the capsule tests, coating and sorting, then the steps of any stage.
 export const BLOCKS: readonly Block[] = [
-  weigh, charge, sift, binderSolution, coatingSuspension, dryMix, mix, granulate, dry, dryConstant, sieve, lubricate,
+  weigh, charge, sift, binderSolution, coatingSuspension, dryMix, mix, granulate, rollerCompact, dry, dryConstant, sieve, lubricate,
   subBatchCombine, blendUniformity, densityFlow, sieveAnalysis, gelMass, capsuleFill, capsuleFillNet, softgelEncapsulate, softgelDry, softgelDryWater, dryObserve, capsuleBand,
   disintegration, uniformityByWeight, contentUniformity, sprayCoat, polishPrint, checkweigh, metalCheck, check,
   checkObserve, qaSample, stageYield, capsuleReconciliation, lineClearance,
