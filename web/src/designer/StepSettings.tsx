@@ -196,7 +196,7 @@ function Slot({ doc, si, ti, block, settings, name, onChange }: {
     const k = kind ?? (unitSetting ? kindOfUnit(settings[unitSetting] as string) : undefined);
     // A limit in a unit the step sets (the roll force unit): its unit list waits for that unit, not every unit.
     const unitFirst = !kind && unitSetting && typeof settings[unitSetting] !== 'string' ? block.settings.find((x) => x.name === unitSetting) : undefined;
-    if (unitFirst) return <p className="muted small">Choose the {unitFirst.label.replace(/ \(.*\)$/, '').toLowerCase()} first.</p>;
+    if (unitFirst) return <span className="muted">within limits; choose the {unitFirst.label.replace(/ \(.*\)$/, '').toLowerCase()} first</span>;
     const def = kind === 'fraction' ? '%' : field?.unit ?? (unitSetting && typeof settings[unitSetting] === 'string' ? settings[unitSetting] as string : unitsOf(k)[0]?.symbol ?? '');
     return <LimitEdit label={s.label} value={typeof v === 'object' && 'unit' in v ? v : undefined} kind={k} unit={def} onChange={onChange} missing={missing} />;
   }
