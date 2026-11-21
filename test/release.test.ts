@@ -15,6 +15,7 @@ const people = {
   qc: { permissions: ['truebatch_capsules.qc.approve'] },
   qa: { permissions: ['truebatch_capsules.qa.release'] },
   operator: { permissions: ['truebatch_capsules.batch.operate'] },
+  issuer: { permissions: ['truebatch_capsules.batch.issue'] },
 };
 type Who = keyof typeof people;
 
@@ -68,6 +69,10 @@ describe('batch signatures', () => {
     ['TC-21 termination without qa.release', 'terminate', 'supervisor', started, [], 'You do not have the permission for this action.'],
     ['TC-21 termination of a released batch', 'terminate', 'qa', complete, [...approved, be('released')], 'The batch is released.'],
     ['TC-21 termination of a rejected batch', 'terminate', 'qa', complete, [...approved, be('rejected')], 'The batch is rejected.'],
+    ['A5 production abandons a batch before any step is recorded', 'abandon', 'issuer', [], [], null],
+    ['A5 abandoning after a step was recorded', 'abandon', 'issuer', started.slice(0, 1), [], 'A step of this batch has been recorded: QA terminates it (with what went back to stores).'],
+    ['A5 abandoning without batch.issue', 'abandon', 'qa', [], [], 'You do not have the permission for this action.'],
+    ['A5 abandoning a terminated batch', 'abandon', 'issuer', [], [be('rejected', { terminated: true, abandoned: true, reason: 'x' })], 'The batch is rejected.'],
     ['TC-21 production approval after termination', 'production-approve', 'supervisor', complete, [be('rejected', { terminated: true, reason: 'x' })], 'Not possible while the batch is rejected.'],
   ])('%s → %s', (_what, action, who, events, batch, want) => {
     expect(refused(action, who, events, batch)?.problems[0] ?? null).toBe(want);
