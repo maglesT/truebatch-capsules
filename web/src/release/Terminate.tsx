@@ -13,7 +13,7 @@ import { terminatedText } from '../../../shared/engine/release.js';
 // signature covers it as read then. Its windows open over the whole page (a portal), not inside the row or card that
 // holds the button: a row on the To review list moves on hover, which would hold a fixed window inside its card.
 // Fix round 21 Nov 2026 (A5), `abandon`: production abandons a batch before any step is recorded: a reason and the
-// signature only (nothing was used; packing: the bulk tablets issued go back).
+// signature only (nothing was used; packing: the bulk capsules issued go back).
 export function Terminate({ id, batchNo, onDone, abandon = false }: { id: number; batchNo: string; onDone: () => Promise<void> | void; abandon?: boolean }) {
   const [step, setStep] = useState<'reason' | 'sign' | null>(null);
   const [reason, setReason] = useState('');

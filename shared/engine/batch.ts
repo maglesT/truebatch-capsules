@@ -237,7 +237,7 @@ export function openSteps(doc: MasterDoc, events: readonly StepEvent[], now: Dat
 
 /**
  * A7 (fix round 21 Nov 2026): why a step cannot be undone to weigh another lot; null when it can. Only a weighing of a
- * lot of a tablet master (a weigh or lubricant step), and only while no later step uses it: the next step of the stage
+ * lot of a capsule master (a weigh or lubricant step), and only while no later step uses it: the next step of the stage
  * has nothing recorded, and no result of another step was worked out from it.
  */
 export function undoRefusal(doc: MasterDoc, events: readonly StepEvent[], key: StepKey): string | null {

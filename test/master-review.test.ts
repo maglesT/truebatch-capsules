@@ -192,7 +192,7 @@ describe('master review and approval', () => {
     expect((await review(id)).events).toMatchObject([{ kind: 'deleted', payload: { reason: 'Wrong product' } }]);
     const listed = (await as('viewer', 'GET', '/api/masters')).json() as { id: number }[];
     expect(listed.some((r) => r.id === id)).toBe(false);
-    expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: placed(tablet()) })).statusCode).toBe(409);
+    expect((await as('author', 'PUT', `/api/master-versions/${id}`, { doc: placed(capsule()) })).statusCode).toBe(409);
     expect((await as('author', 'POST', `/api/master-versions/${id}/delete`, { reason: 'again' })).json().error).toBe('wrong_state');
     const [audit] = await t.owner`select reason from audit_log where action = 'master.deleted' and object_id = ${String(id)}`;
     expect(audit?.reason).toBe('Wrong product');

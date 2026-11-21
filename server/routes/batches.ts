@@ -808,7 +808,7 @@ export function batchRoutes(app: FastifyInstance, sql: Sql) {
           if (signer && b.contentHash !== batchHash(l)) throw new StepError(409, 'content_changed', ['The batch record changed since you opened it.']);
           // Terminate: what went back to stores unused of each lot the batch used; material_use_v1 gives it back to MMS.
           const issued = action === 'terminate' || action === 'abandon' ? issuedLots(l.doc, openSteps(l.doc, l.events, l.now).steps) : [];
-          // Abandoned: nothing was used, so all of it went back (packing: the bulk tablets issued at issue).
+          // Abandoned: nothing was used, so all of it went back (packing: the bulk capsules issued at issue).
           const wrong = action === 'abandon' ? [] : returnProblems(issued, b.returns ?? []);
           if (wrong.length) throw new StepError(400, 'invalid_values', wrong);
           const returns = action === 'abandon' ? issued.map((x) => ({ ...x })) : issued.map((x) => ({ ...x, value: b.returns!.find((r) => r.lot.toLowerCase() === x.lot.toLowerCase() && r.unit === x.unit)!.value }));
