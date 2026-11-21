@@ -476,5 +476,13 @@ describe('a packing batch from a released bulk batch', () => {
     const again = await issue({ line: 'ln-4', bulk: 'TB260006' });
     expect(again.statusCode, again.body).toBe(200);
     expect((await get((again.json() as { id: number }).id)).steps[0]!.values.capsules).toEqual({ value: '8000', unit: 'capsules' });
+    // A6 (fix round 21 Nov 2026): a bulk batch larger than the packing master's batch (100000 capsules): not typed, the
+    // issue is the master's batch, not all of the bulk; the rest stays for the next packing batch.
+    await t.owner.unsafe(`insert into ${TB}.batch_fact_v1 (batch_number, product_code, record_kind, status, issued_at, released, manufactured_on, good_quantity) values
+      ('TB260007', 'PRD-001', 'PROCESSING', 'RELEASED', '2026-11-09 06:00+00', true, '2026-11-09', 250000)`);
+    const plan = await issue({ line: 'ln-5', bulk: 'TB260007' });
+    expect(plan.statusCode, plan.body).toBe(200);
+    expect((await get((plan.json() as { id: number }).id)).steps[0]!.values.capsules).toEqual({ value: "100000", unit: "capsules" });
+    expect((await offers())[0]).toEqual(['TB260007', '250000', '100000', '150000']);
   });
 });
