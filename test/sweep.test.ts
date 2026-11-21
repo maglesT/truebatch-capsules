@@ -48,6 +48,7 @@ const SETTINGS: Record<string, Step['settings']> = {
   'check-observe': { what: 'Suspension homogeneous' },
   disintegration: { maxTime: '15', temperatureLimit: { low: '35', high: '39', unit: '°C' } },
   dissolution: { test: 'dissolution IR', q: '80', timePoint: '45 min, 900 ml pH 6.8' },
+  'lab-tests': { what1: 'Assay of omeprazole', unit1: '%', limit1: pct('95.0', '105.0'), what2: 'Water', unit2: '%', limit2: { high: '3.0', unit: '%' }, what3: 'pH', unit3: 'pH', limit3: { low: '5.0', high: '7.0', unit: 'pH' } },
   'uniformity-by-weight': { coating: 'hard capsule', labelClaim: '50 mg' },
   'content-uniformity': { coating: 'hard capsule' },
   'spray-coat': { coreWeight: { header: 'fillWeight' }, base: 'start', gainLimit: pct('2.8', '3.2'), inletLimit: { low: '50', high: '70', unit: '°C' },

@@ -26,6 +26,7 @@ import { dryMix } from './dry-mix.js';
 import { dry } from './dry.js';
 import { granulate } from './granulate.js';
 import { lineClearance } from './line-clearance.js';
+import { labTests } from './lab-tests.js';
 import { lubricate } from './lubricate.js';
 import { mix } from './mix.js';
 import { rollerCompact } from './roller-compact.js';
@@ -58,12 +59,13 @@ import { serialSample } from './serial-sample.js';
 import { visionChallenge } from './vision-challenge.js';
 
 export type { Block, BlockField, BlockSetting } from './format.js';
+export { labelled } from './format.js';
 // In the order of a process: dispensing and preparation, granulation and blending, gel mass, filling or encapsulation,
 // drying, banding, the capsule tests, coating and sorting, then the steps of any stage.
 export const BLOCKS: readonly Block[] = [
   weigh, charge, sift, binderSolution, coatingSuspension, dryMix, mix, granulate, rollerCompact, dry, dryConstant, sieve, lubricate,
   subBatchCombine, blendUniformity, densityFlow, sieveAnalysis, gelMass, capsuleFill, capsuleFillNet, softgelEncapsulate, softgelDry, softgelDryWater, dryObserve, capsuleBand,
-  disintegration, dissolution, uniformityByWeight, contentUniformity, sprayCoat, polishPrint, checkweigh, metalCheck, check,
+  disintegration, dissolution, uniformityByWeight, contentUniformity, labTests, sprayCoat, polishPrint, checkweigh, metalCheck, check,
   checkObserve, qaSample, stageYield, capsuleReconciliation, lineClearance,
   // TrueBatch Capsules Packing, in the order of a packing record.
   bulkIssue, packMaterialIssue, packClearance, lineSetup, visionChallenge, serialReceived, codingCheck, formingCheck, leakTest, onlineInspection,
