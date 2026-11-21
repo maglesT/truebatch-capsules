@@ -29,6 +29,8 @@ import { lineClearance } from './line-clearance.js';
 import { labTests } from './lab-tests.js';
 import { lubricate } from './lubricate.js';
 import { mix } from './mix.js';
+import { pelletCoat } from './pellet-coat.js';
+import { pelletCureSieve } from './pellet-cure-sieve.js';
 import { rollerCompact } from './roller-compact.js';
 import { polishPrint } from './polish-print.js';
 import { qaSample } from './qa-sample.js';
@@ -65,7 +67,7 @@ export { labelled } from './format.js';
 export const BLOCKS: readonly Block[] = [
   weigh, charge, sift, binderSolution, coatingSuspension, dryMix, mix, granulate, rollerCompact, dry, dryConstant, sieve, lubricate,
   subBatchCombine, blendUniformity, densityFlow, sieveAnalysis, gelMass, capsuleFill, capsuleFillNet, softgelEncapsulate, softgelDry, softgelDryWater, dryObserve, capsuleBand,
-  disintegration, dissolution, uniformityByWeight, contentUniformity, labTests, sprayCoat, polishPrint, checkweigh, metalCheck, check,
+  disintegration, dissolution, uniformityByWeight, contentUniformity, labTests, sprayCoat, pelletCoat, pelletCureSieve, polishPrint, checkweigh, metalCheck, check,
   checkObserve, qaSample, stageYield, capsuleReconciliation, lineClearance,
   // TrueBatch Capsules Packing, in the order of a packing record.
   bulkIssue, packMaterialIssue, packClearance, lineSetup, visionChallenge, serialReceived, codingCheck, formingCheck, leakTest, onlineInspection,
