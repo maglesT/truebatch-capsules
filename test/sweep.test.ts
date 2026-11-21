@@ -47,6 +47,7 @@ const SETTINGS: Record<string, Step['settings']> = {
   checkweigh: { weightLimit: { low: '165.0', high: '185.0', unit: 'mg' } },
   'check-observe': { what: 'Suspension homogeneous' },
   disintegration: { maxTime: '15', temperatureLimit: { low: '35', high: '39', unit: '°C' } },
+  dissolution: { test: 'dissolution IR', q: '80', timePoint: '45 min, 900 ml pH 6.8' },
   'uniformity-by-weight': { coating: 'hard capsule', labelClaim: '50 mg' },
   'content-uniformity': { coating: 'hard capsule' },
   'spray-coat': { coreWeight: { header: 'fillWeight' }, base: 'start', gainLimit: pct('2.8', '3.2'), inletLimit: { low: '50', high: '70', unit: '°C' },
