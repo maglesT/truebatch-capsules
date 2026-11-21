@@ -54,6 +54,7 @@ beforeAll(async () => {
     { ...item('prd-1', 'PRD-001', 'Examplol 100 mg capsules'), strength: '100 mg', dosageForm: 'capsule' });
   for (const m of packing().pack!.materials) t.master.materials_.push({ ...item(m.materialItemId, m.code, m.name), category: 'packing', unit: m.unit === 'units' ? 'nos' : m.unit });
   t.master.equipment_.push({ ...item('ln-1', 'BL-01', 'Blister line 1'), kind: 'equipment', type: 'blister line', room: 'PK-01' },
+    { ...item('ct-1', 'CT-01', 'Cartoner 1'), kind: 'equipment', type: 'Cartoner', room: 'PK-01' },
     { ...item('ln-2', 'BL-02', 'Blister line 2'), kind: 'equipment', type: 'blister line', room: 'PK-02' },
     { ...item('ln-3', 'BL-03', 'Blister line 3'), kind: 'equipment', type: 'blister line', room: 'PK-03' });
   const people = {
@@ -256,7 +257,8 @@ describe('a packing batch from a released bulk batch', () => {
     const issued: Record<string, string> = { foil: '1250', pvc: '1250', carton: '1000', leaflet: '1000' };
     for (const [i, k] of Object.keys(issued).entries()) await step(`0.1.${i + 1}.1`, { lot: `${k.toUpperCase()}-1`, ...handLabels('lot', 'lot'), issued: issued[k], matches: 'yes' });
     await step('1.1.0.1', { ...line, ...yes('noPrevious', 'coderCleared', 'rejectsEmpty', 'clean'), cleanedOn: '2026-11-15 07:00', cleanedBy: 'CLEANER ONE' });
-    await step('1.1.1.1', yes('components', 'changeParts', 'coderSet', 'specimens'));
+    // A9 (fix round 21 Nov 2026): the line is several machines: the cartoner is recorded at line set-up.
+    await step('1.1.1.1', { machine2: 'ct-1', ...handLabels('machine2', 'machine'), ...yes('components', 'changeParts', 'coderSet', 'specimens') });
     const coding = await step('1.1.2.1', { printedBatch: 'TB260001', printedMfg: 'NOV.2026', printedExpiry: 'OCT.2028', printedMrp: 'Rs. 125.00', ...yes('legible', 'packingDone') });
     expect(coding.results.expiryCheck).toMatchObject({ check: { pass: true } });
     await step('1.1.3.1', { sealTemp: '175', ...yes('pockets', 'seal', 'packingDone') });
@@ -394,9 +396,10 @@ describe('a packing batch from a released bulk batch', () => {
     // named only in the line clearance, it was used by the stage: the Logbook reads "(Packing)".
     expect(await lineUse()).toEqual({ ended: true });
     const eq = await t.owner.unsafe(`select equipment_code, equipment_type, room_code, step, step_name, ended_at is not null as ended from ${t.schema}_report.equipment_use_v1 where batch_number = $1`, [batchNo]);
-    expect(eq).toEqual([{ equipment_code: 'BL-01', equipment_type: 'blister line', room_code: 'PK-01', step: 'packing/clearance', step_name: 'Packing', ended: true }]);
+    expect(eq.filter((x) => x.equipment_code === 'BL-01')).toEqual([{ equipment_code: 'BL-01', equipment_type: 'blister line', room_code: 'PK-01', step: 'packing/clearance', step_name: 'Packing', ended: true }]);
+    expect(eq.filter((x) => x.equipment_code === 'CT-01')).toMatchObject([{ equipment_type: 'Cartoner', room_code: 'PK-01', ended: true }]);
     // Whole-suite run, S17: the use starts when the line was recorded on the line clearance, not when that step started.
-    const [use] = await t.owner.unsafe(`select started_at from ${t.schema}_report.equipment_use_v1 where batch_number = $1`, [batchNo]);
+    const [use] = await t.owner.unsafe(`select started_at from ${t.schema}_report.equipment_use_v1 where batch_number = $1 and equipment_code = 'BL-01'`, [batchNo]);
     const [rec] = await t.owner<{ at: Date }[]>`select min(at) as at from step_events where batch_id = ${id} and stage = 1 and sub = 1 and step = 0 and kind = 'value'`;
     expect(use!.started_at).toEqual(rec!.at);
     const used = await t.owner.unsafe(`select lot_number, material_code, material_master_id, quantity::text, unit, step, status

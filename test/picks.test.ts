@@ -26,6 +26,7 @@ const OFFERS: Record<string, string[]> = {
   'softgel-dry.machine': ['Tumble dryer'], 'metal-check.machine': ['Metal detector'], 'capsule-band.machine': ['Capsule bander'],
   'polish-print.machine': ['Softgel inspection machine', 'Capsule polisher'], 'uniformity-by-weight.balance': BALANCES, 'mix.machine': [...BLENDERS, 'Rapid mixer granulator', 'Manufacturing vessel', 'Fill preparation tank'],
   'bulk-issue.line': LINES, 'pack-clearance.line': LINES, 'pack-clearance-after.line': LINES,
+  'line-setup.machine2': [...LINES, 'Case packer'], 'line-setup.machine3': [...LINES, 'Case packer'], 'line-setup.machine4': [...LINES, 'Case packer'],
 };
 
 describe('machine pickers on the demo master-data types', () => {
