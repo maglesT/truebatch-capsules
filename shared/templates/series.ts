@@ -141,9 +141,16 @@ export interface Around {
   /** What the centre is, for the worked line, e.g. "target weight from the blend assay". */
   readonly name?: string;
   readonly plusMinusPercent?: string;
+  /** Show the centre rounded to this many decimals (at least 4 significant figures), as the step shows the target it
+   *  came from ("2.234 kg"), not cut ("2.2339… kg"). Display only: the check reads the full value. */
+  readonly centreDecimals?: number;
   /** Absolute ± in the centre's unit, e.g. "15.0 mg". */
   readonly plusMinus?: Q;
 }
+
+/** A centre or target rounded for the worked line: `dp` decimals, more for a small value (at least 4 significant figures). */
+export const roundedText = (v: Dec, unit: string, dp: number) =>
+  `${fmt(v, !v.isZero() && v.abs().lt(1) ? Math.max(dp, 3 - Math.floor(Dec.log10(v.abs()).toNumber())) : dp)}${unit ? ` ${unit}` : ''}`;
 
 export type C1Input = { readonly value: Q | ResultValue; readonly limit: Limit } | { readonly value: Q | ResultValue; readonly around: Around };
 
@@ -156,7 +163,8 @@ export function c1WithinLimits(i: C1Input): Outcome<{ readonly deviation?: Dec }
       return { ok: true, value: p.v, unit: p.unit.symbol, check, shown: check.shown };
     }
     const a = i.around;
-    const c = parseAny(a.centre, 'The centre value');
+    const c0 = parseAny(a.centre, 'The centre value');
+    const c = a.centreDecimals !== undefined ? { ...c0, text: roundedText(c0.v, c0.unit.symbol, a.centreDecimals) } : c0;
     sameKind([p, c], 'Within limits');
     if ((a.plusMinusPercent === undefined) === (a.plusMinus === undefined)) refuse('Give the band either as ± % or as ± an amount (one of them)');
     const dev = to(p, c.unit).minus(c.v);
@@ -255,7 +263,8 @@ export function c2Count(i: C2Input): Outcome {
 
 // ---------------------------------------------------------------- C3 All individual values
 /** A band for each unit: absolute limits, or ± % of the series mean / of a target. */
-export type Band = { readonly limit: Limit } | { readonly plusMinusPercent: string; readonly of: 'mean' | { readonly target: Q } };
+/** `decimals` (display only): the target shown rounded as the step shows it ("1.1170 g"), not cut ("1.116… g"). */
+export type Band = { readonly limit: Limit } | { readonly plusMinusPercent: string; readonly of: 'mean' | { readonly target: Q; readonly decimals?: number } };
 
 export type C3Input = (Series | Pairs | Groups) & {
   readonly band: Band;
@@ -294,7 +303,7 @@ function makeTester(band: Band, s: Stats, meanDp: number): { test: (p: Parsed) =
   } else {
     const t = parse(band.of.target, 'The target');
     ref = to(t, s.unit);
-    refText = `the target ${t.text}`;
+    refText = `the target ${band.of.decimals !== undefined ? roundedText(t.v, t.unit.symbol, band.of.decimals) : t.text}`;
   }
   if (ref.isZero()) refuse('A ± % band needs a reference other than zero');
   return {

@@ -151,3 +151,17 @@ describe('C4 Observation', () => {
     expect(refused(c4Observation(i))).toMatch(msg);
   });
 });
+
+describe('fix 1128: a centre or target taken from a result is shown rounded as the step shows it, not cut', () => {
+  it('C1 around with centreDecimals: "from 2.234 kg", a small value keeps 4 significant figures', async () => {
+    const { c1WithinLimits } = await import('../../shared/templates/series.js');
+    const at = (centre: string, value: string) => ok(c1WithinLimits({ value, around: { centre, name: 'target', centreDecimals: 3, plusMinusPercent: '0.5' } })).shown;
+    expect(at('2.2339180241 kg', '2.2340 kg')).toContain('from 2.234 kg (target)');
+    expect(at('0.0586234 kg', '0.05860 kg')).toContain('from 0.05862 kg (target)');
+    expect(at('2.2339180241 kg', '2.2340 kg')).not.toContain('…');
+  });
+  it('C3 with a target and decimals: "of the target 1.1170 g"', () => {
+    const r = ok(c3AllIndividual({ values: ['1.1150', '1.1180'], unit: 'g', band: { plusMinusPercent: '5', of: { target: '1.116983 g', decimals: 4 } } }));
+    expect(r.check?.shown).toContain('of the target 1.1170 g');
+  });
+});

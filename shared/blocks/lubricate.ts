@@ -25,7 +25,7 @@ export const lubricate: Block = {
   calcs: [
     { name: 'rescaled', label: 'Lubricant for the actual granules', template: 'T15', args: { formulaQuantity: '$lubricant', actual: '$granuleWeight', theoretical: '$theoretical', window: '$window?', unit: 'kg' } },
     { name: 'net', label: 'Net weight', template: 'T1', args: { a: '$gross', b: '$tare' } },
-    { name: 'netCheck', label: 'Net against target', template: 'C1', args: { value: '$net', around: { centre: '$rescaled', name: 'target', plusMinusPercent: '$tolerance' } } },
+    { name: 'netCheck', label: 'Net against target', template: 'C1', args: { value: '$net', around: { centre: '$rescaled', name: 'target', centreDecimals: 3, plusMinusPercent: '$tolerance' } } },
     { name: 'mixTime', label: 'Mixing time', template: 'T13', args: { mode: 'duration', start: '$mixStart', end: '$mixEnd', limit: '$mixTimeLimit' } },
   ],
 };
