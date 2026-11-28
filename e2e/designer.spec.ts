@@ -116,7 +116,7 @@ test('TC-02 build a master from a skeleton, fix a master-check problem, then che
   const checker = await as(browser, 'mcheck1');
   await checker.getByRole('row', { name: /PRD-001/ }).getByRole('button', { name: 'Open' }).click();
   await checker.getByRole('button', { name: 'Return to the author' }).click();
-  await checker.getByLabel('Reason').fill(`Returned for the re-test: ${'the approval under a change control of another product was tried and must be refused, '.repeat(5)}see QMS/change-controls/CC-2026-0007/approval-history/without-a-single-break-in-this-long-reference-to-the-record.`);
+  await checker.getByLabel('Reason').fill(`Returned for the re-test: ${'the approval under a change control of another product was tried and must be refused, '.repeat(5)}see ASSURE/change-controls/CC-2026-0007/approval-history/without-a-single-break-in-this-long-reference-to-the-record.`);
   await checker.getByRole('dialog').getByRole('button', { name: 'Return' }).click();
   await expect(checker.locator('.timeline')).toContainText('Returned to the author');
   await review(author);

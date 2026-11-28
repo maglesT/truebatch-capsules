@@ -143,9 +143,9 @@ export function blockProblems(b: Block): string[] {
     if (f.kind === 'number' && !f.unit) p.push(`field ${f.name}: a number needs a unit`);
     if (f.unit?.startsWith('$') ? !settings.has(f.unit.slice(1)) : f.unit !== undefined && !findUnit(f.unit)) p.push(`field ${f.name}: unknown unit ${f.unit}`);
     if (f.kind === 'choice' && !f.options?.length) p.push(`field ${f.name}: a choice needs options`);
-    if (f.qc === true && (f.kind !== 'number' || f.count !== undefined)) p.push(`field ${f.name}: only a single number is a QC result from LIMS`);
-    if (f.qc === 'in_process' && f.kind !== 'number') p.push(`field ${f.name}: only a number or a list of readings is an in-process result from LIMS`);
-    if (f.figure && (f.qc !== 'in_process' || f.count === undefined)) p.push(`field ${f.name}: only an in-process list of readings names LIMS's figure`);
+    if (f.qc === true && (f.kind !== 'number' || f.count !== undefined)) p.push(`field ${f.name}: only a single number is a QC result from QLIMS`);
+    if (f.qc === 'in_process' && f.kind !== 'number') p.push(`field ${f.name}: only a number or a list of readings is an in-process result from QLIMS`);
+    if (f.figure && (f.qc !== 'in_process' || f.count === undefined)) p.push(`field ${f.name}: only an in-process list of readings names QLIMS's figure`);
     if (f.figure === 'AV' && !b.settings.some((s) => s.name === 'coating')) p.push(`field ${f.name}: the acceptance value needs the coating setting`);
     if (f.nextStage) {
       const next = b.fields.find((x) => x.name === f.nextStage);

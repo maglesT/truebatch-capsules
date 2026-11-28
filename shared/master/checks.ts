@@ -145,7 +145,7 @@ export function masterChecks(doc: MasterDoc): Problem[] {
       // lubrication) has a code for each occurrence ('@1', '@2'), which LIMS's in-process specification maps one by one.
       const times = doc.stages.reduce((n, x) => n + x.steps.filter((y) => y.block.id === st.block.id).length, 0);
       const codes = [...new Set(Object.values(ipcCodes(doc, si, ti, block.fields)))];
-      if (times > 1 && codes.length) out.push({ level: 'info', path: p, message: `${block.name} is in this master ${times} times: this step's in-process test is ${codes.join(', ')}. LIMS specification must map each occurrence` });
+      if (times > 1 && codes.length) out.push({ level: 'info', path: p, message: `${block.name} is in this master ${times} times: this step's in-process test is ${codes.join(', ')}. QLIMS specification must map each occurrence` });
     });
   });
   return out.map((p) => ({ ...p, message: plainWords(p.message) }));

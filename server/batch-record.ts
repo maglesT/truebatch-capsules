@@ -184,7 +184,7 @@ export function batchRecordDoc(r: RecordInput, by: string, printedAt = new Date(
     const d = devOf(e);
     const closed = d?.closed && batchEvents.find((b) => b.id === d.closed!.id);
     return [small(d ? deviationNumber(d) : '—'), small(stepLabel(`${e.stage}.${e.sub}.${e.step}.${e.round}`)), small(e.payload.text ?? ''), small(`${who(e.person)}, ${plant(e.at)}`),
-      small(!d ? excText(e) || 'note (no deviation number)' : d.status ? `${d.open ? 'OPEN: ' : ''}${deviationStatusWords(d.status)} in the Deviations system${d.closedAt ? `, ${plant(d.closedAt)}` : ''}` : d.open ? 'OPEN' : `closed by ${closed?.personName ?? ''}, ${plant(closed?.at)}: ${closed?.payload.reason ?? ''}`, d?.open || excs.some((x) => x.note === e.id && x.decision !== 'closed') ? { color: RED } : {})];
+      small(!d ? excText(e) || 'note (no deviation number)' : d.status ? `${d.open ? 'OPEN: ' : ''}${deviationStatusWords(d.status)} in DIVE${d.closedAt ? `, ${plant(d.closedAt)}` : ''}` : d.open ? 'OPEN' : `closed by ${closed?.personName ?? ''}, ${plant(closed?.at)}: ${closed?.payload.reason ?? ''}`, d?.open || excs.some((x) => x.note === e.id && x.decision !== 'closed') ? { color: RED } : {})];
   })));
 
   // Packing (whole-suite run, S24): the bulk batch's deviations still open, as read now; release waits for them. A link
@@ -193,17 +193,17 @@ export function batchRecordDoc(r: RecordInput, by: string, printedAt = new Date(
     content.push(heading(`Open deviations of the bulk batch ${r.bulk.bulk}`));
     content.push(r.bulk.state !== 'ok' ? small(`${bulkNotCheckedText(r.bulk)}: QA confirms by hand at release.`, { color: RED })
       : r.bulk.open.length ? { stack: r.bulk.open.map((d) => small(`${bulkOpenText(r.bulk!.bulk, d)}${d.title ? ` · ${d.title}` : ''}`, { color: RED })) }
-      : small('None: every deviation of the bulk batch is closed in the Deviations system.'));
+      : small('None: every deviation of the bulk batch is closed in DIVE.'));
   }
 
   // Signatures whose training was typed by hand because Recruitment was not reachable, for QA (owner, 17 Nov 2026);
   // only when the master names a training.
   if (doc.stages.some((s) => s.steps.some((t) => t.training))) {
-    content.push(heading('Training typed by hand (Recruitment not reachable)'));
+    content.push(heading('Training typed by hand (TIDE not reachable)'));
     content.push(table([170, 150, 120, '*'], ['Step', 'Signed by', 'When', 'Training'], trainingTyped(events).map((x) => [
       small(stepLabel(x.step)), small(`${who(x.person)} (${x.kind === 'checked' ? 'checked' : 'performed'})`), small(plant(x.at)),
-      small(`${skillText(x)}: ticked "I am trained", Recruitment ${x.state === 'down' ? 'link down' : 'not linked'}`, { color: RED }),
-    ]), 'None: every training was read from Recruitment.'));
+      small(`${skillText(x)}: ticked "I am trained", TIDE ${x.state === 'down' ? 'link down' : 'not linked'}`, { color: RED }),
+    ]), 'None: every training was read from TIDE.'));
   }
 
   // Every signature of the batch with its meaning.

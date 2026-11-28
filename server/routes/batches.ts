@@ -276,7 +276,7 @@ async function readValues(app: FastifyInstance, tx: Tx, doc: MasterDoc, key: Ste
     // (a list: its individual values; a staged list may fill the other stage's field too); absent or down, typed below.
     if (f.qc === 'in_process' && noLabRequest(current)) {
       // Round 43: started before LIMS in-process requests: typed by hand below (a pick is refused: no request to pick from).
-      if (isPick(x)) { problems.push(`${f.label}: this step was started before LIMS in-process requests: type it from the QC report.`); continue; }
+      if (isPick(x)) { problems.push(`${f.label}: this step was started before QLIMS in-process requests: type it from the QC report.`); continue; }
       source[name] = { from: 'hand', link: 'lims', state: 'no_request' };
     } else if (f.qc === 'in_process') {
       const unitOf = (y: typeof f) => { const u = y.unit?.startsWith('$') ? step.settings[y.unit.slice(1)] : y.unit; return typeof u === 'string' ? u : ''; };
@@ -793,7 +793,7 @@ export function batchRoutes(app: FastifyInstance, sql: Sql) {
           const no = batchRefusal(action, view(l, dv.read), user, b.note);
           if (no) throw new StepError(no.status, no.error, no.problems);
           // Sent to Deviations only where there is a Deviations system to file it (owner decision 20 Nov 2026).
-          if (action === 'send-exception' && dv.link === 'absent') throw new StepError(409, 'not_linked', ['Deviations is not linked: close it here.']);
+          if (action === 'send-exception' && dv.link === 'absent') throw new StepError(409, 'not_linked', ['DIVE is not linked: close it here.']);
           // Packing (S24): the bulk batch's deviations, all closed in the Deviations system, or confirmed by QA by hand.
           const bulk = action === 'release' ? await bulkDeviations(app, l) : null;
           const held = bulkRefusal(bulk, b.bulkChecked);
@@ -893,7 +893,7 @@ export function batchRoutes(app: FastifyInstance, sql: Sql) {
             // The reference must be a deviation of the Deviations system while it answers; else typed, and QA closes it by hand.
             const r = await app.links.deviations.byNumbers([b.reference]);
             const d = r.state === 'ok' ? r.value.get(b.reference) : undefined;
-            if (r.state === 'ok' && !d) throw new StepError(409, 'unknown_deviation', [`${b.reference} is not in the Deviations system: pick one of the deviations of this batch, or check the number.`]);
+            if (r.state === 'ok' && !d) throw new StepError(409, 'unknown_deviation', [`${b.reference} is not in DIVE: pick one of the deviations of this batch, or check the number.`]);
             payload.reference = b.reference;
             payload.source = { reference: d ? { from: 'deviations', asOf: null, shown: `${d.number}: ${d.title ?? ''} (${d.status})` } : { from: 'hand', link: 'deviations', state: r.state as 'absent' | 'down' } };
           }

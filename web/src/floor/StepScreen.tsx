@@ -327,7 +327,7 @@ export function StepScreen({ me, d, blocks, row, now, reload }: { me: Me; d: Bat
           ) : (
             <section className="dash-panel" aria-label="Record">
               <div className="panel-head"><h2>Record</h2>{can('record') && <span className="muted">each value is saved when you leave the field</span>}</div>
-              {ipResults?.noRequest && <p className="notice warn">This step was started before LIMS in-process requests: type the in-process results from the QC report. They are marked typed by hand; a second person checks them.</p>}
+              {ipResults?.noRequest && <p className="notice warn">This step was started before QLIMS in-process requests: type the in-process results from the QC report. They are marked typed by hand; a second person checks them.</p>}
               {fields.map(fieldView)}
             </section>
           )}
@@ -427,11 +427,11 @@ export function StepScreen({ me, d, blocks, row, now, reload }: { me: Me; d: Bat
 /** The signer's training in the step's skill, as Recruitment answered when the dialog opened. */
 type TrainingRead = { skill: Skill; link: 'ok' | 'absent' | 'down'; ok: boolean; training?: Training; message?: string };
 function TrainingCheck({ skill, read, ticked, onTick }: { skill: Skill; read: TrainingRead | null; ticked: boolean; onTick: (b: boolean) => void }) {
-  if (!read) return <p className="muted">Reading your training from Recruitment…</p>;
+  if (!read) return <p className="muted">Reading your training from TIDE…</p>;
   if (read.link === 'ok') return read.ok ? <p className="notice info">Your training: {trainingText(read.training!)}.</p> : <p className="notice bad">{read.message}</p>;
   return (
     <div className="notice warn">
-      <p>Recruitment {read.link === 'absent' ? 'is not linked' : 'cannot be reached'}: this step needs a person trained in it. Your signature will be marked “training typed by hand” for QA.</p>
+      <p>TIDE {read.link === 'absent' ? 'is not linked' : 'cannot be reached'}: this step needs a person trained in it. Your signature will be marked “training typed by hand” for QA.</p>
       <label className="check"><input type="checkbox" checked={ticked} onChange={(e) => onTick(e.target.checked)} />{tickText(skill)}</label>
     </div>
   );

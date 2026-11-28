@@ -92,8 +92,8 @@ export function ReleaseScreen({ me, id }: { me: Me; id: number }) {
   const bulkUnchecked = r.bulk && r.bulk.state !== 'ok' ? r.bulk : null;
   const qcTurn = d.batch.status === 'production approved';
   const qaTurn = d.batch.status === 'QC approved';
-  const blockers = [...openDevs.map((x) => `Deviation ${x.reference} (${name(x.step)}) is ${x.status ? `still open in the Deviations system (${deviationStatusWords(x.status)}): it is closed there first.` : 'open: close it first.'}`),
-    ...d.batch.exceptions.filter((x) => x.decision !== 'closed').map((x) => `Deviation note “${x.text}” (${x.where ?? name(x.step)}) ${x.decision === 'open' ? 'waits for a decision: close it here or send it to Deviations.' : 'was sent to Deviations and is not filed there yet.'}`),
+  const blockers = [...openDevs.map((x) => `Deviation ${x.reference} (${name(x.step)}) is ${x.status ? `still open in DIVE (${deviationStatusWords(x.status)}): it is closed there first.` : 'open: close it first.'}`),
+    ...d.batch.exceptions.filter((x) => x.decision !== 'closed').map((x) => `Deviation note “${x.text}” (${x.where ?? name(x.step)}) ${x.decision === 'open' ? 'waits for a decision: close it here or send it to DIVE.' : 'was sent to DIVE and is not filed there yet.'}`),
     ...bulkOpen.map((x) => `${bulkOpenText(r.bulk!.bulk, x)}.`), ...d.batch.yieldOut.map(plain)];
   const handLabel = (step: string, field: string) => field === 'reference' ? 'deviation number' : fieldLabel(step, field);
 
@@ -127,7 +127,7 @@ export function ReleaseScreen({ me, id }: { me: Me; id: number }) {
         <Kpi n={openDevs.length + bulkOpen.length} label={r.deviations.length ? `Open deviations (${r.deviations.length} in all)` : 'Open deviations'} tone="bad" />
         <Kpi n={r.hand.length} label="Typed by hand, not pulled through a link" tone="warn" />
       </div>
-      {r.deviationsLink === 'down' && <p className="notice warn">The Deviations link is down: the deviation statuses shown are TrueBatch's own (closed by hand).</p>}
+      {r.deviationsLink === 'down' && <p className="notice warn">The DIVE link is down: the deviation statuses shown are TrueBatch's own (closed by hand).</p>}
 
       <section className="dash-panel" aria-label="Review of the record and its audit trail">
         <div className="panel-head"><h2>Review of the record and its audit trail</h2>
@@ -150,22 +150,22 @@ export function ReleaseScreen({ me, id }: { me: Me; id: number }) {
           <li key={x.step}><b>{name(x.step)}</b><small>{x.changes.map((e) => `${e.personName}, ${plainClock(e.at)}`).join(' · ')}</small></li>))}</Group>}
         <Group title="Deviation notes" empty="No deviation note has a deviation number.">{r.deviations.map((x) => (
           <li key={x.note} className={x.open ? 'bad' : 'ok'}><b>{deviationNumber(x)} · {name(x.step)}</b><span>{x.text}</span>
-            <small>{x.status ? `${deviationStatusWords(x.status)} in the Deviations system${x.closedAt ? `, ${plainClock(x.closedAt)}` : ''}` : x.open ? 'Open: QA closes it before release' : `Closed by ${x.closed?.personName}, ${plainClock(x.closed?.at ?? '')}: ${x.closed?.payload.reason ?? ''}`}</small>
+            <small>{x.status ? `${deviationStatusWords(x.status)} in DIVE${x.closedAt ? `, ${plainClock(x.closedAt)}` : ''}` : x.open ? 'Open: QA closes it before release' : `Closed by ${x.closed?.personName}, ${plainClock(x.closed?.at ?? '')}: ${x.closed?.payload.reason ?? ''}`}</small>
             {x.open && !x.status && !decided && can(me, 'qa.release') && <button onClick={() => setClosing(x)}>Close the deviation…</button>}</li>))}</Group>
         <h3>Deviation notes without a number</h3>
         <Exceptions me={me} batchId={id} batchNo={d.batch.batchNo} exceptions={d.batch.exceptions} contentHash={d.batch.contentHash} deviationsLink={d.batch.deviationsLink}
           ended={decided} stepName={name} onDone={async (t) => { setNotice(t); await reload(); }} />
-        {r.unlinked.length > 0 && <Group title="Deviations naming this batch that no note links" empty="">{r.unlinked.map((x) => (
-          <li key={x.number} className="bad"><b>{x.number}</b><span>{x.title}</span><small>{deviationStatusWords(x.status)} in the Deviations system</small></li>))}</Group>}
+        {r.unlinked.length > 0 && <Group title="DIVE deviations naming this batch that no note links" empty="">{r.unlinked.map((x) => (
+          <li key={x.number} className="bad"><b>{x.number}</b><span>{x.title}</span><small>{deviationStatusWords(x.status)} in DIVE</small></li>))}</Group>}
         {r.bulk && (bulkUnchecked ? <Group title={`Open deviations of the bulk batch ${r.bulk.bulk}`} empty="">{[
-          <li key="unchecked" className="bad"><b>{bulkNotCheckedText(bulkUnchecked)}</b><span>QA checks them in the Deviations system and types what was found before release.</span></li>]}</Group>
-          : <Group title={`Open deviations of the bulk batch ${r.bulk.bulk}`} empty="None: every deviation of the bulk batch is closed in the Deviations system.">{bulkOpen.map((x) => (
-            <li key={x.number} className="bad"><b>{x.number}{x.step ? ` · ${x.step}` : ''}</b><span>{x.title}</span><small>{deviationStatusWords(x.status)} in the Deviations system: closed there before release</small></li>))}</Group>)}
+          <li key="unchecked" className="bad"><b>{bulkNotCheckedText(bulkUnchecked)}</b><span>QA checks them in DIVE and types what was found before release.</span></li>]}</Group>
+          : <Group title={`Open deviations of the bulk batch ${r.bulk.bulk}`} empty="None: every deviation of the bulk batch is closed in DIVE.">{bulkOpen.map((x) => (
+            <li key={x.number} className="bad"><b>{x.number}{x.step ? ` · ${x.step}` : ''}</b><span>{x.title}</span><small>{deviationStatusWords(x.status)} in DIVE: closed there before release</small></li>))}</Group>)}
         <Group title="Typed by hand (a link was off or down)" empty="Every linked value came through its link.">{r.hand.map((h, i) => (
           <li key={i}><b>{name(h.step)} · {handLabel(h.step, h.field)}</b><span>{handWhy(h, 'link was down')}</span>
             <small>{h.personName}, {plainClock(h.at)}</small></li>))}</Group>
-        {(r.trainingTyped.length > 0 || d.master.doc.stages.some((s) => s.steps.some((t) => t.training))) && <Group title="Training typed by hand (Recruitment not reachable)" empty="Every training was read from Recruitment.">{r.trainingTyped.map((x) => (
-          <li key={x.event} className="bad"><b>{name(x.step)}</b><span>{x.personName} ({x.kind === 'checked' ? 'checked' : 'performed'}) ticked “I am trained in {skillText(x)}”: Recruitment {x.state === 'down' ? 'link was down' : 'not linked'}</span>
+        {(r.trainingTyped.length > 0 || d.master.doc.stages.some((s) => s.steps.some((t) => t.training))) && <Group title="Training typed by hand (TIDE not reachable)" empty="Every training was read from TIDE.">{r.trainingTyped.map((x) => (
+          <li key={x.event} className="bad"><b>{name(x.step)}</b><span>{x.personName} ({x.kind === 'checked' ? 'checked' : 'performed'}) ticked “I am trained in {skillText(x)}”: TIDE {x.state === 'down' ? 'link was down' : 'not linked'}</span>
             <small>{plainClock(x.at)}</small></li>))}</Group>}
         <Group title="Steps not applicable" empty="Every step was done.">{r.notApplicable.map((e) => (
           <li key={e.id}><b>{name(idOf(e))}</b><span>{e.payload.reason}</span><small>{e.personName}, {plainClock(e.at)}</small></li>))}</Group>
@@ -186,8 +186,8 @@ export function ReleaseScreen({ me, id }: { me: Me; id: number }) {
         {qcTurn && (can(me, 'qc.approve') ? (
           <div className="decide">
             {lims ? (<>
-              <p className="lbl">Certificate of analysis of batch {d.batch.batchNo} in LIMS</p>
-              {lims.coas.length === 0 ? <p className="notice">LIMS has no approved CoA of this batch yet: QC approves the sample in LIMS first.</p> : (
+              <p className="lbl">Certificate of analysis of batch {d.batch.batchNo} in QLIMS</p>
+              {lims.coas.length === 0 ? <p className="notice">QLIMS has no approved CoA of this batch yet: QC approves the sample in QLIMS first.</p> : (
                 <div className="picks" role="group" aria-label="Certificate of analysis">
                   {lims.coas.map((c) => (
                     <button key={c.coaNumber} type="button" className={reportNo === c.coaNumber ? 'on' : ''} aria-pressed={reportNo === c.coaNumber} onClick={() => setReportNo(c.coaNumber)}>
@@ -204,8 +204,8 @@ export function ReleaseScreen({ me, id }: { me: Me; id: number }) {
         {qaTurn && (can(me, 'qa.release') ? (<>
           {blockers.length > 0 && <div className="notice bad" role="note"><p><b>Release is not possible yet:</b></p><ul>{blockers.map((t, i) => <li key={i}>{t}</li>)}</ul></div>}
           <div className="decide">
-            {bulkUnchecked && <label>{bulkNotCheckedText(bulkUnchecked)}. Check them in the Deviations system and type what you found (typed by hand)
-              <textarea value={bulkTyped} onChange={(e) => setBulkTyped(e.target.value)} maxLength={500} placeholder="e.g. Checked in the Deviations system: no open deviation of this bulk batch" /></label>}
+            {bulkUnchecked && <label>{bulkNotCheckedText(bulkUnchecked)}. Check them in DIVE and type what you found (typed by hand)
+              <textarea value={bulkTyped} onChange={(e) => setBulkTyped(e.target.value)} maxLength={500} placeholder="e.g. Checked in DIVE: no open deviation of this bulk batch" /></label>}
             <p className="why">Your signature means: you reviewed the record and its audit trail above ({count(r.corrections.length, 'correction')}, {count(r.sentBack.length, 'step')} sent back,
               {' '}{count(r.late.length, 'late timer')}, {count(r.outOfLimits.length, 'value')} out of limits, {count(r.deviations.length, 'deviation')}) and the batch is released.</p>
             <button className="big ok" disabled={blockers.length > 0 || (!!bulkUnchecked && !bulkTyped.trim())} onClick={() => setSigning({ meaning: 'released', action: 'release' })}>Sign: released</button>

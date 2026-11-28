@@ -20,6 +20,6 @@ export const PACKING: Product = {
     'truebatch_capsules_packing.qa.release': 'QA review and release of packed batches',
     'truebatch_capsules_packing.view': 'View packing records and packing master versions',
     'truebatch_capsules_packing.demo.skip': 'Skip a running wait (demo installations only)',
-    'truebatch_capsules_packing.exception.decide': 'Decide a deviation note without a number: close it here (reason and e-signature) or send it to Deviations',
+    'truebatch_capsules_packing.exception.decide': 'Decide a deviation note without a number: close it here (reason and e-signature) or send it to DIVE',
   },
 };

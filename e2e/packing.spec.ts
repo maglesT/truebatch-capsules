@@ -117,7 +117,7 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
   try {
     await iss.page.getByRole('row', { name: /Effective/ }).getByRole('button', { name: 'Issue a batch' }).click();
     await expect(issue.getByRole('group', { name: 'Packing line' }).getByRole('button')).toHaveText([/BL-01/]);
-    await expect(issue.getByText(/Not offered, because the Logbook does not have/)).toHaveCount(0);
+    await expect(issue.getByText(/Not offered, because LEAD does not have/)).toHaveCount(0);
     await issue.getByRole('group', { name: 'Packing line' }).getByRole('button', { name: /BL-01/ }).click();
     await issue.getByLabel('Bulk batch no.').fill('TB260001');
     // Pull, don't type: the capsules issued are what is left of the bulk batch's good capsules, from TrueBatch Capsules,
@@ -127,7 +127,7 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
     await issue.getByLabel('Bulk capsules issued').fill('100001');
     await issue.getByRole('button', { name: 'Next: sign' }).click();
     await iss.page.getByRole('dialog').last().getByRole('button', { name: 'Sign', exact: true }).click();
-    await expect(issue.getByRole('alert')).toContainText('BL-01 is not fit for use (Logbook): Dirty: clean and verify before the next use.');
+    await expect(issue.getByRole('alert')).toContainText('BL-01 is not fit for use (LEAD): Dirty: clean and verify before the next use.');
     await expect(issue.getByRole('alert')).toContainText('Only 100000 capsules of bulk batch TB260001 are left to issue (100000 good capsules, 0 already issued to other packing batches): issue 100000 or less.');
     await issue.getByRole('button', { name: 'Cancel' }).click();
   } finally {
@@ -225,12 +225,12 @@ test('TC-P2 packing journey: packing master from the skeleton, approved; a packi
   // batch's deviations are not checked: QA checks them in the Deviations system and types what was found.
   await expect(qa.page.getByRole('region', { name: 'Review of the record and its audit trail' })).toContainText('Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001');
   await expect(qa.page.getByRole('button', { name: 'Sign: released' })).toBeDisabled();
-  await qa.page.getByLabel(/Bulk deviations not checked/).fill('Checked in the Deviations system: none open for TB260001');
+  await qa.page.getByLabel(/Bulk deviations not checked/).fill('Checked in DIVE: none open for TB260001');
   await qa.page.getByRole('button', { name: 'Sign: released' }).click();
-  await expect(qa.page.getByRole('dialog')).toContainText('Bulk deviations, typed by hand: Checked in the Deviations system: none open for TB260001');
+  await expect(qa.page.getByRole('dialog')).toContainText('Bulk deviations, typed by hand: Checked in DIVE: none open for TB260001');
   await sign(qa.page);
   await expect(qa.page.getByRole('status')).toContainText('The batch is released.');
-  await expect(qa.page.getByRole('region', { name: 'Decision' })).toContainText('QA confirmed by hand (typed): Checked in the Deviations system: none open for TB260001');
+  await expect(qa.page.getByRole('region', { name: 'Decision' })).toContainText('QA confirmed by hand (typed): Checked in DIVE: none open for TB260001');
   const [download] = await Promise.all([qa.page.waitForEvent('download'), qa.page.getByRole('link', { name: 'Packing record (PDF)' }).last().click()]);
   expect(download.suggestedFilename()).toBe(`packing-record-${batch.batchNo}.pdf`);
   const { readFileSync } = await import('node:fs');

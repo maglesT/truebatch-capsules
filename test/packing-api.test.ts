@@ -33,7 +33,7 @@ beforeAll(async () => {
       create schema ${TB};
       create table ${TB}.batch_fact_v1 (batch_id uuid, batch_number text, product_code text, strength text, mbr_version_id uuid, family_code text, record_kind text,
         status text, issued_at timestamptz, completed_at timestamptz, released boolean, read_at timestamptz default now(), data_as_of timestamptz default now(), manufactured_on date);
-      -- TrueBatch Capsules' deviation_note_v1 and the Deviations system's deviation_v1 (in the same fake schema): the bulk
+      -- TrueBatch Capsules' deviation_note_v1 and DIVE's deviation_v1 (in the same fake schema): the bulk
       -- batch's open deviations block packing release (whole-suite run, S24).
       create table ${TB}.deviation_note_v1 (note_id bigint, source_ref text, batch_number text, product_code text, step text, note text, reference text, status text,
         noted_at timestamptz, read_at timestamptz default now(), data_as_of timestamptz default now());
@@ -333,9 +333,9 @@ describe('a packing batch from a released bulk batch', () => {
     const held = await release({ bulkChecked: 'typed is no way round an open deviation' });
     expect(held.statusCode).toBe(409);
     expect(held.json()).toMatchObject({ problems: [
-      'Deviation DEV-2026-0045 of the bulk batch TB260001 (Compression › Check the capsules) is still open in the Deviations system (waiting for closure): it is closed there first',
-      'Deviation DEV-2026-0047 of the bulk batch TB260001 (Blending › Blend) is still open in the Deviations system (under investigation): it is closed there first',
-      'Deviation DEV-2026-0048 of the bulk batch TB260001 is still open in the Deviations system (waiting for its CAPA): it is closed there first'] });
+      'Deviation DEV-2026-0045 of the bulk batch TB260001 (Compression › Check the capsules) is still open in DIVE (waiting for closure): it is closed there first',
+      'Deviation DEV-2026-0047 of the bulk batch TB260001 (Blending › Blend) is still open in DIVE (under investigation): it is closed there first',
+      'Deviation DEV-2026-0048 of the bulk batch TB260001 is still open in DIVE (waiting for its CAPA): it is closed there first'] });
     // The PDF lists them too.
     const open = JSON.stringify(batchRecordDoc({ ...await recordInput(t.sql, (await loadBatch(t.sql, id))!), bulk: await bulkDeviations(t.app, (await loadBatch(t.sql, id))!) }, 'QA'));
     for (const text of ['Open deviations of the bulk batch TB260001', 'Deviation DEV-2026-0047 of the bulk batch TB260001', 'Label mix-up found at packing']) expect(open).toContain(text);
@@ -347,18 +347,18 @@ describe('a packing batch from a released bulk batch', () => {
     expect(await review()).toEqual({ bulk: 'TB260001', state: 'down', link: 'truebatch_capsules', open: [] });
     const unchecked = await release();
     expect(unchecked.statusCode).toBe(409);
-    expect(unchecked.json()).toMatchObject({ problems: ['Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001. Check them in the Deviations system and type what you found.'] });
-    const rel = await release({ bulkChecked: 'Checked in the Deviations system: none open for TB260001' });
+    expect(unchecked.json()).toMatchObject({ problems: ['Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001. Check them in DIVE and type what you found.'] });
+    const rel = await release({ bulkChecked: 'Checked in DIVE: none open for TB260001' });
     expect(rel.statusCode, rel.body).toBe(200);
     await t.owner.unsafe(`grant select on ${TB}.deviation_note_v1 to ${PACKING_APP_ROLE}`);
     const [relEv] = await t.owner`select payload from batch_events where batch_id = ${id} and kind = 'released'`;
-    expect(relEv!.payload).toMatchObject({ bulk: { bulk: 'TB260001', state: 'down', link: 'truebatch_capsules', typed: 'Checked in the Deviations system: none open for TB260001' } });
+    expect(relEv!.payload).toMatchObject({ bulk: { bulk: 'TB260001', state: 'down', link: 'truebatch_capsules', typed: 'Checked in DIVE: none open for TB260001' } });
     expect((await get(id, 'qa1')).batch.status).toBe('released');
 
     // TC-22 for packing: the packing record PDF, with the pack, the bulk and the packing materials.
     const pdf = JSON.stringify(batchRecordDoc(await recordInput(t.sql, (await loadBatch(t.sql, id))!, t.app.master), 'QA'));
     for (const text of ['Packing record TCP', 'TrueBatch Capsules Packing', 'batch TB260001', 'expiry 10/2028', 'QC report QC-26-0101', 'Packing materials', 'Lot FOIL-1: 1250 m', '1176 m used',
-      'Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001; QA confirmed by hand (typed): Checked in the Deviations system: none open for TB260001']) expect(pdf).toContain(text);
+      'Bulk deviations not checked (TrueBatch Capsules link down): bulk batch TB260001; QA confirmed by hand (typed): Checked in DIVE: none open for TB260001']) expect(pdf).toContain(text);
     // A count in master data's name for it (cartons in nos), as on screen and in MMS: per pack (1 carton per 10 packs, not 0.1 nos), the lots issued, the values.
     for (const text of ['"1 carton per 10 packs"', 'Lot CARTON-1: 1000 nos', 'Quantity issued: 1000 nos', 'Used in good packs: 980 nos']) expect(pdf).toContain(text);
     for (const text of ['"0.1 units"', '"0.1 nos"', 'Lot CARTON-1: 1000 units', 'Quantity issued: 1000 units']) expect(pdf).not.toContain(text);

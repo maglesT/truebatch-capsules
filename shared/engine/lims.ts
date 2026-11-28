@@ -62,7 +62,7 @@ const PURPOSES: Record<CoaFor['kind'], string[]> = { PRODUCT: ['release'], MATER
 export function coaRefusal(c: Coa, want: CoaFor): string | null {
   const no = c.coaNumber ?? `of sample ${c.sampleNumber}`;
   const what = want.kind === 'PRODUCT' ? `batch ${want.batchNo}` : `lot ${want.lot}`;
-  if (c.decision !== 'APPROVED' || c.rejected || !c.coaNumber) return `CoA ${no} is not approved in LIMS (${c.decision.toLowerCase()}): only an approved CoA may be used.`;
+  if (c.decision !== 'APPROVED' || c.rejected || !c.coaNumber) return `CoA ${no} is not approved in QLIMS (${c.decision.toLowerCase()}): only an approved CoA may be used.`;
   if (c.itemKind !== want.kind) return `CoA ${no} is of a ${(c.itemKind ?? 'other').toLowerCase()} sample, not of ${what}.`;
   if (!same(c.lotNumber, want.kind === 'PRODUCT' ? want.batchNo : want.lot)) return `CoA ${no} is for ${want.kind === 'PRODUCT' ? 'batch' : 'lot'} ${c.lotNumber ?? '—'}, not ${what}.`;
   if (want.kind === 'PRODUCT' && c.itemCode && !same(c.itemCode, want.productCode)) return `CoA ${no} is of ${c.itemCode}, not ${want.productCode}.`;
@@ -95,7 +95,7 @@ export function sameUnit(a: string | null | undefined, b: string | null | undefi
 /** Why this result may not fill a field in `unit`; null when it may (its CoA is checked by coaRefusal). */
 export function resultRefusal(r: QcResult, unit: string): string | null {
   const what = `${r.testName ?? 'The result'} of CoA ${r.coaNumber ?? '—'}`;
-  if (!r.reported || !NUMBER.test(r.reported.trim())) return `${what} has no reported figure in LIMS.`;
+  if (!r.reported || !NUMBER.test(r.reported.trim())) return `${what} has no reported figure in QLIMS.`;
   if (!sameUnit(r.unit, unit)) return `${what} is in ${r.unit || 'no unit'}, not in ${unit}.`;
   return null;
 }
@@ -122,8 +122,8 @@ export function fieldRefusal(r: Pick<QcResult, 'ipcField' | 'individual' | 'test
 }
 
 /** The CoA as the step, the review and the PDF show it (kept with the record as the source's `shown`). */
-export const coaText = (c: Coa) => `LIMS CoA ${c.coaNumber}: sample ${c.sampleNumber}${c.itemCode ? `, ${c.itemCode}` : ''}${c.lotNumber ? ` ${c.lotNumber}` : ''}, approved${c.decidedBy ? ` by ${c.decidedBy}` : ''}${c.specNumber ? `, specification ${c.specNumber}${c.specVersion ? ` v${c.specVersion}` : ''}` : ''}`;
-export const resultText = (r: QcResult) => `LIMS CoA ${r.coaNumber}: ${r.testName ?? 'result'} ${r.reported}${r.unit ? ` ${r.unit}` : ''} as reported${r.limitText ? ` (limit ${r.limitText})` : ''}${r.analysisNumber ? `, analysis ${r.analysisNumber}` : ''}${r.outsideLab ? `, outside lab ${r.outsideLab}` : ''}`;
+export const coaText = (c: Coa) => `QLIMS CoA ${c.coaNumber}: sample ${c.sampleNumber}${c.itemCode ? `, ${c.itemCode}` : ''}${c.lotNumber ? ` ${c.lotNumber}` : ''}, approved${c.decidedBy ? ` by ${c.decidedBy}` : ''}${c.specNumber ? `, specification ${c.specNumber}${c.specVersion ? ` v${c.specVersion}` : ''}` : ''}`;
+export const resultText = (r: QcResult) => `QLIMS CoA ${r.coaNumber}: ${r.testName ?? 'result'} ${r.reported}${r.unit ? ` ${r.unit}` : ''} as reported${r.limitText ? ` (limit ${r.limitText})` : ''}${r.analysisNumber ? `, analysis ${r.analysisNumber}` : ''}${r.outsideLab ? `, outside lab ${r.outsideLab}` : ''}`;
 /** The answer that picks a LIMS result for a field (the step screen sends it in place of a typed number). */
 export const isPick = (x: unknown): x is { lims: string } => !!x && typeof x === 'object' && !Array.isArray(x) && typeof (x as { lims?: unknown }).lims === 'string';
 
@@ -212,7 +212,7 @@ const FIGURE: Record<string, string> = { mean: 'mean', AV: 'acceptance value', r
  * request it was sampled for and (round 43) when: "sampled in round 3 at <time>" in a step with rounds, else "requested
  * <time>" (the time its request opened).
  */
-export const inProcessText = (r: QcResult, request: string, sampled?: { round?: number; at?: string }) => `LIMS in-process report ${r.coaNumber}: ${r.testName ?? 'result'} (request ${request}`
+export const inProcessText = (r: QcResult, request: string, sampled?: { round?: number; at?: string }) => `QLIMS in-process report ${r.coaNumber}: ${r.testName ?? 'result'} (request ${request}`
   + `${sampled?.round ? `, sampled in round ${sampled.round}` : ''}${sampled?.at ? `${sampled.round ? ' at' : ', requested'} ${sampled.at}` : ''})${r.individual ? `, ${r.individual.length} values` : ''}`
   + `${r.reported ? `, ${r.individual ? `${FIGURE[r.figure ?? ''] ?? 'reported'} ` : ''}${r.reported}${r.unit ? ` ${r.unit}` : ''} as reported` : ''}${r.limitText ? ` (limit ${r.limitText})` : ''}`
   + `${r.analysisNumber ? `, analysis ${r.analysisNumber}` : ''}${r.outsideLab ? `, outside lab ${r.outsideLab}` : ''}`;
@@ -243,12 +243,12 @@ export function inProcessFit(r: Pick<QcResult, 'testName' | 'coaNumber' | 'unit'
   if (f.count === undefined) {
     if (r.individual?.length) return no(`${what} is a list of ${r.individual.length} values: ${f.label} takes one result.`);
     if (r.figure && r.figure !== 'result') return no(`${what} reports the ${FIGURE[r.figure] ?? r.figure}, not one result: it is not ${f.label}.`);
-    if (!r.reported || !NUMBER.test(r.reported.trim())) return no(`${what} has no reported figure in LIMS.`);
+    if (!r.reported || !NUMBER.test(r.reported.trim())) return no(`${what} has no reported figure in QLIMS.`);
     return { take: { [f.name]: r.reported.trim() } };
   }
   const vals = (r.individual ?? []).map((v) => String(v).trim());
-  if (!vals.length) return no(`${what} has no individual values in LIMS: ${f.label} takes ${f.count} values.`);
-  if (!vals.every((v) => NUMBER.test(v))) return no(`${what} has a value that is not a number in LIMS.`);
+  if (!vals.length) return no(`${what} has no individual values in QLIMS: ${f.label} takes ${f.count} values.`);
+  if (!vals.every((v) => NUMBER.test(v))) return no(`${what} has a value that is not a number in QLIMS.`);
   if (f.figure && r.figure && r.figure !== f.figure) return no(`${what} reports the ${FIGURE[r.figure] ?? r.figure}, not the ${FIGURE[f.figure]}: it is not ${f.label}.`);
   const next = f.nextStage ? fields.find((x) => x.name === f.nextStage) : undefined;
   const prev = fields.find((x) => x.nextStage === f.name);
@@ -259,7 +259,7 @@ export function inProcessFit(r: Pick<QcResult, 'testName' | 'coaNumber' | 'unit'
   if (!prev) {
     if (m === f.count) take[f.name] = vals;
     else if (next?.count && m === f.count + next.count) { take[f.name] = vals.slice(0, f.count); take[next.name] = vals.slice(f.count); }
-    else return no(`${what} has ${m} values in LIMS; ${f.label} takes exactly ${f.count}${next?.count ? ` (or ${f.count + next.count} with ${next.label.toLowerCase()})` : ''}. Values are never added or left out: ask QC to check the result in LIMS.`);
+    else return no(`${what} has ${m} values in QLIMS; ${f.label} takes exactly ${f.count}${next?.count ? ` (or ${f.count + next.count} with ${next.label.toLowerCase()})` : ''}. Values are never added or left out: ask QC to check the result in QLIMS.`);
   } else {
     const p = prev.count ?? 0;
     const had = recorded[prev.name];
@@ -272,11 +272,11 @@ export function inProcessFit(r: Pick<QcResult, 'testName' | 'coaNumber' | 'unit'
     } else if (m === p + f.count) {
       const first = vals.slice(0, p);
       if (hadVals && (hadVals.length !== p || hadVals.some((v, i) => !NUMBER.test(v) || !new Dec(v).eq(first[i]!)))) {
-        return no(`The first ${p} values of ${what} (${first.join(', ')}) are not the ${p} recorded for ${prev.label.toLowerCase()} (${hadVals.join(', ')}): ask QC to check the result in LIMS.`);
+        return no(`The first ${p} values of ${what} (${first.join(', ')}) are not the ${p} recorded for ${prev.label.toLowerCase()} (${hadVals.join(', ')}): ask QC to check the result in QLIMS.`);
       }
       if (!hadVals) take[prev.name] = first;
       take[f.name] = vals.slice(p);
-    } else return no(`${what} has ${m} values in LIMS; ${f.label} takes exactly ${f.count} (or ${p + f.count} with the first ${p} of ${prev.label.toLowerCase()}). Values are never added or left out: ask QC to check the result in LIMS.`);
+    } else return no(`${what} has ${m} values in QLIMS; ${f.label} takes exactly ${f.count} (or ${p + f.count} with the first ${p} of ${prev.label.toLowerCase()}). Values are never added or left out: ask QC to check the result in QLIMS.`);
   }
   // LIMS's reported figure of all its values must agree with the step's own, rounded as LIMS wrote it.
   if (f.figure && r.figure === f.figure && r.reported && NUMBER.test(r.reported.trim())) {
@@ -284,7 +284,7 @@ export function inProcessFit(r: Pick<QcResult, 'testName' | 'coaNumber' | 'unit'
     if ('error' in own) return no(`${what}: ${own.error}.`);
     const lims = r.reported.trim();
     const mine = roundHalfUp(own, writtenDecimals(lims));
-    if (!mine.eq(lims)) return no(`LIMS reports the ${FIGURE[f.figure]} of ${what} as ${lims}; TrueBatch works it out from the same ${all.length} values as ${mine.toFixed(writtenDecimals(lims))}: ask QC to check the result in LIMS.`);
+    if (!mine.eq(lims)) return no(`QLIMS reports the ${FIGURE[f.figure]} of ${what} as ${lims}; TrueBatch works it out from the same ${all.length} values as ${mine.toFixed(writtenDecimals(lims))}: ask QC to check the result in QLIMS.`);
   }
   return { take };
 }

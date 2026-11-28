@@ -124,7 +124,7 @@ test('TC-14 floor journey: start, a value out of limits needs a deviation note, 
   await chkCtx.close();
 });
 
-test('TC-23 only trained people sign: the sign dialog shows the training from Recruitment, refuses an untrained checker, and asks for the tick while Recruitment is down', async ({ browser }) => {
+test('TC-23 only trained people sign: the sign dialog shows the training from TIDE, refuses an untrained checker, and asks for the tick while TIDE is down', async ({ browser }) => {
   const setup = await browser.newContext();
   const batch = await issueBatch(await setup.newPage(), { training: { code: 'SOP-STR-004', title: 'Operating the stirrer' } });
   await setup.close();
@@ -135,14 +135,14 @@ test('TC-23 only trained people sign: the sign dialog shows the training from Re
   await logIn(op, 'op1');
   await op.goto(`/#/batch/${batch.id}`);
   await op.getByRole('button', { name: /^1 Check a value against limits: pH/ }).click();
-  await expect(op.getByRole('region', { name: 'Instruction' })).toContainText('Done by a person trained in SOP-STR-004 Operating the stirrer; checked by a person trained in it too (Recruitment).');
+  await expect(op.getByRole('region', { name: 'Instruction' })).toContainText('Done by a person trained in SOP-STR-004 Operating the stirrer; checked by a person trained in it too (TIDE).');
   await op.getByRole('button', { name: 'Start', exact: true }).click();
   await op.getByLabel('Reading').fill('6.0');
   await op.getByLabel('Reading').press('Enter');
   await op.getByRole('button', { name: 'Done', exact: true }).click();
-  await expect(op.getByRole('dialog')).toContainText('Your training: trained: SOP-STR-004 Operating the stirrer, valid until 9 Jan 2099 (Recruitment).');
+  await expect(op.getByRole('dialog')).toContainText('Your training: trained: SOP-STR-004 Operating the stirrer, valid until 9 Jan 2099 (TIDE).');
   await sign(op);
-  await expect(op.getByRole('region', { name: 'History' })).toContainText('Signed: performed · trained: SOP-STR-004 Operating the stirrer, valid until 9 Jan 2099 (Recruitment)');
+  await expect(op.getByRole('region', { name: 'History' })).toContainText('Signed: performed · trained: SOP-STR-004 Operating the stirrer, valid until 9 Jan 2099 (TIDE)');
   await opCtx.close();
 
   // chk1 is not: refused in plain words, Sign is off.
@@ -152,7 +152,7 @@ test('TC-23 only trained people sign: the sign dialog shows the training from Re
   await chk.getByRole('region', { name: 'Waiting for your check' }).getByRole('button', { name: /Check a value against limits: pH/ }).click();
   await chk.getByRole('button', { name: 'Checked', exact: true }).click();
   const dialog = chk.getByRole('dialog');
-  await expect(dialog).toContainText('CHK1 has no valid training in SOP-STR-004 Operating the stirrer (Recruitment): ask QA, or another trained person signs.');
+  await expect(dialog).toContainText('CHK1 has no valid training in SOP-STR-004 Operating the stirrer (TIDE): ask QA, or another trained person signs.');
   await expect(dialog.getByRole('button', { name: 'Sign', exact: true })).toBeDisabled();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 
@@ -161,7 +161,7 @@ test('TC-23 only trained people sign: the sign dialog shows the training from Re
   await owner.unsafe(`revoke select on all tables in schema ${E2E_RECRUITMENT} from truebatch_capsules_app`);
   try {
     await chk.getByRole('button', { name: 'Checked', exact: true }).click();
-    await expect(dialog).toContainText('Recruitment cannot be reached');
+    await expect(dialog).toContainText('TIDE cannot be reached');
     await expect(dialog.getByRole('button', { name: 'Sign', exact: true })).toBeDisabled();
     await dialog.getByLabel('I am trained in SOP-STR-004 Operating the stirrer').check();
     await sign(chk);
@@ -170,7 +170,7 @@ test('TC-23 only trained people sign: the sign dialog shows the training from Re
     await owner.end();
   }
   await expect(chk.locator('.step-title')).toContainText('Checked');
-  await expect(chk.getByRole('region', { name: 'History' })).toContainText('Signed: verified (second person) · training typed by hand (Recruitment not reachable): SOP-STR-004 Operating the stirrer');
+  await expect(chk.getByRole('region', { name: 'History' })).toContainText('Signed: verified (second person) · training typed by hand (TIDE not reachable): SOP-STR-004 Operating the stirrer');
   await chkCtx.close();
 });
 

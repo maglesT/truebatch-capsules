@@ -91,7 +91,7 @@ describe('machine pickers on the demo master-data types', () => {
     const tester = field('disintegration', 'machine');
     const all = [{ code: 'IN-DT-01', type: 'Disintegration tester', room: 'RM-110' }, { code: 'BAL-X', type: null, room: null }, { code: 'EQ-CMP-01', type: 'Tablet press', room: 'RM-105' }];
     expect(emptyNote(stage, tester, all, ROOMS)).toBe('No disintegration tester can be used here: IN-DT-01 stands in RM-110, not in a room this stage allows (RM-105). '
-      + '1 machine has no type in master data, so it is not offered. Engineering moves one into a room this stage allows, or adds one, in master data (the Logbook shows where each stands).');
+      + '1 machine has no type in master data, so it is not offered. Engineering moves one into a room this stage allows, or adds one, in master data (LEAD shows where each stands).');
     expect(emptyNote(stage, tester, all.slice(1), ROOMS)).toBe('Master data has no active disintegration tester. 1 machine has no type in master data, so it is not offered. Engineering adds it in master data.');
   });
 });

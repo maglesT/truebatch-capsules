@@ -12,7 +12,7 @@ import type { Block } from './format.js';
 const caps = Array.from({ length: 10 }, (_, i) => `c${i + 1}`);
 export const uniformityByWeight: Block = {
   id: 'uniformity-by-weight', version: 1, name: 'Uniformity by weight variation', checker: true,
-  instruction: 'Weigh 10 capsules one by one. Open each, empty it (soft gels: wash out the fill and dry the shell) and weigh its shell. Send a composite sample of the capsules to QC for the assay and pick its result from LIMS once QC has approved it (typed from the QC report only while LIMS cannot be reached).',
+  instruction: 'Weigh 10 capsules one by one. Open each, empty it (soft gels: wash out the fill and dry the shell) and weigh its shell. Send a composite sample of the capsules to QC for the assay and pick its result from QLIMS once QC has approved it (typed from the QC report only while QLIMS cannot be reached).',
   fields: [
     { name: 'balance', label: 'Balance', kind: 'machine', types: ['balance'], notTypes: ['analytical', 'micro'] },
     ...caps.map((c, i) => ({ name: c, label: `Capsule ${i + 1}: full, then shell`, kind: 'number' as const, unit: 'mg', count: 2 })),
